@@ -2,6 +2,8 @@
 
 macOS専用のPDFページ画像書き出しアプリです。
 
+開発判断、技術的制約、検証結果、次のTODOは [`docs/HANDOFF.md`](docs/HANDOFF.md) にまとめています。
+
 ## 実装済みの機能
 
 - Swift / SwiftUI、macOS 13以降
@@ -40,7 +42,7 @@ PDFUNK/
 3. Scheme `PDFUNK`、実行先 `My Mac` を選び、Runする。
 4. PDFをドロップし、必要なら保存先を変更して「EXPORT!」を押す。
 
-コマンドラインの型チェックは `swift build` で実行できます。`xcode-select -p` がCommand Line Toolsを指していてSDK不一致になる環境では、Xcodeをインストール後、Xcodeの Settings > Locations > Command Line Tools で使用するXcodeを選択してください。配布用の署名、Sandbox権限、アイコン、Info.plistは、MVPの動作確認後にXcode app projectへ整備します。
+コマンドラインの型チェックは `swift build` で実行できます。`xcode-select -p` がCommand Line Toolsを指していてSDK不一致になる環境では、Xcodeをインストール後、Xcodeの Settings > Locations > Command Line Tools で使用するXcodeを選択してください。配布用の署名、Sandbox権限、Info.plistの最終調整は、機能検証後にXcode app projectへ整備します。アプリアイコンは実装済みです。
 
 ## 開発ロードマップ / TODO
 
@@ -49,5 +51,5 @@ PDFUNK/
 - [ ] 同名出力フォルダ・ファイルが存在する場合の上書き方針
 - [ ] 変換キャンセル、詳細な進捗、Finderで表示
 - [ ] App Sandboxとsecurity-scoped bookmarkによるアクセス永続化
-- [ ] アプリアイコン、署名、公証、配布形式、最低対応macOSの最終決定
+- [ ] 署名、公証、配布形式、最低対応macOSの最終決定
 - [ ] ユニットテストと代表PDFによる画像寸法・色・回転の回帰テスト
