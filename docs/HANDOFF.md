@@ -10,7 +10,9 @@ PDFUNK（読み: ピーディーファンク）は、PDFの各ページを画像
 - Swift / SwiftUI / PDFKit / Core Graphics / ImageIO
 - 対応OS: macOS 13以降
 - Xcode Scheme: `PDFUNK`
-- Bundle Identifier: `com.pdfunk.app`
+- Bundle Identifier: `com.wentz.PDFUNK`（旧: `com.pdfunk.app`）
+- Version / Build: `1.0` / `1`
+- Team: WENTZ, K.K. (`UYQNZULLNC`)
 
 ## 2. 現在の完成状態
 
@@ -107,12 +109,20 @@ PNGはCMYKを保持できないため、`PNG + CMYK` はUIで実行不可です�
 4. 暗号化・破損PDFと巨大ページのエラー／メモリ対策を強化する。
 5. MediaBox固定からCropBox選択へ拡張するか決める。
 6. 代表PDFによる寸法、回転、色、ICCの自動回帰テストを追加する。
-7. App Sandboxとsecurity-scoped bookmarkを整備する。
-8. Developer ID署名、公証、配布方法を決める。
+7. 選択済み保存先を次回起動時にも復元する場合はsecurity-scoped bookmarkを追加する。
 
 現在のPSDは編集レイヤーを持たないフラットPSDです。レイヤー付きPSDは別機能として設計が必要です。
 
-## 8. 次の開発セッションへ渡す文面
+## 8. 配布設定
+
+- Hardened RuntimeおよびApp Sandboxを有効化
+- Sandbox権限はユーザー選択ファイル／フォルダのread-writeのみ
+- DebugはApple Development、ReleaseはDeveloper ID Applicationで署名
+- Releaseはarm64 / x86_64のUniversal Binary
+- `scripts/archive-and-notarize.sh` でDeveloper IDアーカイブ、Apple公証、staple、Gatekeeper検証を実行
+- 旧Bundle IDで永続化していた独自データはないため、データ移行処理は不要
+
+## 9. 次の開発セッションへ渡す文面
 
 別環境やWeb版へ相談する場合は、次の文面とこのファイルを渡せば再開できます。
 

@@ -128,7 +128,10 @@ struct ContentView: View {
                 return false
             }
             pdfURLs = pdfs
-            destinationURL = pdfs[0].deletingLastPathComponent()
+            // A dropped file grants access to that file, but App Sandbox does not
+            // grant write access to its parent directory. Require an explicit
+            // destination selection so exports always have a user-approved scope.
+            destinationURL = nil
             progressText = ""
             return true
         } isTargeted: { isTargeted = $0 }
@@ -238,6 +241,14 @@ struct ContentView: View {
         progressText = "変換を開始しています…"
 
         Task {
+            let securityScopedURLs = filesToConvert + [destinationURL]
+            let accessedURLs = securityScopedURLs.filter {
+                $0.startAccessingSecurityScopedResource()
+            }
+            defer {
+                accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+            }
+
             do {
                 for (fileIndex, pdfURL) in filesToConvert.enumerated() {
                     try await PDFConverter().convert(

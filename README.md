@@ -42,7 +42,22 @@ PDFUNK/
 3. Scheme `PDFUNK`、実行先 `My Mac` を選び、Runする。
 4. PDFをドロップし、必要なら保存先を変更して「EXPORT!」を押す。
 
-コマンドラインの型チェックは `swift build` で実行できます。`xcode-select -p` がCommand Line Toolsを指していてSDK不一致になる環境では、Xcodeをインストール後、Xcodeの Settings > Locations > Command Line Tools で使用するXcodeを選択してください。配布用の署名、Sandbox権限、Info.plistの最終調整は、機能検証後にXcode app projectへ整備します。アプリアイコンは実装済みです。
+コマンドラインの型チェックは `swift build` で実行できます。`xcode-select -p` がCommand Line Toolsを指していてSDK不一致になる環境では、Xcodeをインストール後、Xcodeの Settings > Locations > Command Line Tools で使用するXcodeを選択してください。アプリアイコン、App Sandbox、Hardened Runtime、Developer ID署名設定は実装済みです。DebugはApple Development署名、ReleaseはDeveloper ID Application署名を使用します。
+
+## Gumroad配布用ビルドと公証
+
+ReleaseはApple Silicon / Intel対応のUniversal Binaryです。最初にApple IDまたはApp Store Connect APIキーをKeychainへ登録します。
+
+```bash
+xcrun notarytool store-credentials PDFUNK-notary
+./scripts/archive-and-notarize.sh PDFUNK-notary
+```
+
+成功すると、公証チケットをstapleした `dist/export/PDFUNK.app` と、Gumroad掲載用の `dist/PDFUNK-1.0-notarized.zip` が生成されます。
+
+App Sandboxの権限は、ユーザーが選んだファイル／フォルダの読み書きだけです。PDFをドロップした後、Sandboxが書き込みを許可できるよう保存先を `SELECT…` で選択します。ネットワーク、カメラ、マイク等の権限は付与していません。
+
+旧Bundle Identifierは `com.pdfunk.app` でした。アプリ固有のUserDefaults、Application Support、Keychain、security-scoped bookmarkは保存していなかったため、移行対象データはありません。新旧ビルドはmacOS上で別アプリとして扱われます。
 
 ## 開発ロードマップ / TODO
 
@@ -50,6 +65,6 @@ PDFUNK/
 - [ ] 暗号化PDF、破損PDF、極端に大きなページへのエラー・メモリ対策
 - [ ] 同名出力フォルダ・ファイルが存在する場合の上書き方針
 - [ ] 変換キャンセル、詳細な進捗、Finderで表示
-- [ ] App Sandboxとsecurity-scoped bookmarkによるアクセス永続化
-- [ ] 署名、公証、配布形式、最低対応macOSの最終決定
+- [x] App Sandboxとユーザー選択ファイル／フォルダへのsecurity-scoped access
+- [x] Developer ID署名、公証、Universal Binaryの配布設定
 - [ ] ユニットテストと代表PDFによる画像寸法・色・回転の回帰テスト
