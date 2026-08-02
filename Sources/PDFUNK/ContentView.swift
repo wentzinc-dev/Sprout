@@ -36,11 +36,156 @@ private struct SproutPreset: Codable, Identifiable {
     var name: String
     var options: ExportOptions
     var destinationMode: DestinationMode
+    var preservesFolderStructure: Bool?
+}
+
+private struct PresetWindowView: View {
+    @Binding var savedPresetsData: String
+    @Binding var options: ExportOptions
+    @Binding var destinationMode: DestinationMode
+    @Binding var destinationURL: URL?
+    @Binding var preservesFolderStructure: Bool
+    @Binding var presetName: String
+    @Binding var selectedPresetID: UUID?
+    @Binding var alertMessage: String?
+    let isJapanese: Bool
+    let onDone: () -> Void
+
+    private var savedPresets: [SproutPreset] {
+        guard let data = savedPresetsData.data(using: .utf8) else { return [] }
+        return (try? JSONDecoder().decode([SproutPreset].self, from: data)) ?? []
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(t("プリセットを選択", "Choose a preset"))
+                .font(.subheadline.weight(.semibold))
+            Picker("", selection: $selectedPresetID) {
+                Text(t("選択してください", "Choose a preset")).tag(UUID?.none)
+                ForEach(savedPresets) { preset in
+                    Text(preset.name).tag(UUID?.some(preset.id))
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+
+            HStack {
+                Button(t("読み込む", "Load"), action: loadSelectedPreset)
+                    .disabled(selectedPresetID == nil)
+                Button(t("書き出す…", "Export…"), action: exportSelectedPresetFile)
+                    .disabled(selectedPresetID == nil)
+                Spacer()
+                Button(t("削除", "Delete"), action: deleteSelectedPreset)
+                    .disabled(selectedPresetID == nil)
+            }
+
+            Divider()
+
+            Text(t("現在の設定のプリセットを保存", "Save current settings as a preset"))
+                .font(.subheadline.weight(.semibold))
+            HStack {
+                TextField(t("プリセット名", "Preset name"), text: $presetName)
+                Button(t("保存", "Save"), action: saveCurrentPreset)
+                    .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            HStack {
+                Button(t("設定を初期値へ戻す", "Reset settings")) {
+                    options = ExportOptions()
+                    destinationMode = .sameLocation
+                    destinationURL = nil
+                    preservesFolderStructure = false
+                }
+                Spacer()
+                Button(t("決定", "Done"), action: onDone)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+    }
+
+    private func saveCurrentPreset() {
+        let cleanName = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty else { return }
+        var presets = savedPresets
+        let savedID: UUID
+        if let index = presets.firstIndex(where: { $0.name == cleanName }) {
+            presets[index].options = options
+            presets[index].destinationMode = destinationMode
+            presets[index].preservesFolderStructure = preservesFolderStructure
+            savedID = presets[index].id
+        } else {
+            let preset = SproutPreset(
+                name: cleanName,
+                options: options,
+                destinationMode: destinationMode,
+                preservesFolderStructure: preservesFolderStructure
+            )
+            presets.append(preset)
+            savedID = preset.id
+        }
+        guard persistPresets(presets) else {
+            alertMessage = t("プリセットを保存できませんでした。", "Could not save the preset.")
+            return
+        }
+        selectedPresetID = savedID
+    }
+
+    private func loadSelectedPreset() {
+        guard let id = selectedPresetID,
+              let preset = savedPresets.first(where: { $0.id == id }) else { return }
+        var loadedOptions = preset.options
+        if loadedOptions.saveSizeMode == nil {
+            loadedOptions.saveSizeMode = .percent
+            loadedOptions.percentage = 100
+        }
+        options = loadedOptions
+        destinationMode = preset.destinationMode
+        destinationURL = nil
+        preservesFolderStructure = preset.preservesFolderStructure ?? false
+        presetName = preset.name
+    }
+
+    private func deleteSelectedPreset() {
+        guard let id = selectedPresetID else { return }
+        guard persistPresets(savedPresets.filter { $0.id != id }) else { return }
+        selectedPresetID = nil
+        presetName = ""
+    }
+
+    private func exportSelectedPresetFile() {
+        guard let id = selectedPresetID,
+              let preset = savedPresets.first(where: { $0.id == id }),
+              let data = try? JSONEncoder().encode(preset) else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(preset.name).sproutpreset"
+        panel.allowedContentTypes = [UTType(filenameExtension: "sproutpreset") ?? .json]
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                alertMessage = error.localizedDescription
+            }
+        }
+    }
+
+    @discardableResult
+    private func persistPresets(_ presets: [SproutPreset]) -> Bool {
+        guard let data = try? JSONEncoder().encode(presets),
+              let json = String(data: data, encoding: .utf8) else { return false }
+        savedPresetsData = json
+        return true
+    }
+
+    private func t(_ japanese: String, _ english: String) -> String {
+        isJapanese ? japanese : english
+    }
 }
 
 struct ContentView: View {
     @AppStorage("appTheme") private var appTheme = AppTheme.system.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
+    @AppStorage("appFontSize") private var appFontSize = AppFontSize.medium.rawValue
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
     @AppStorage("savedPresets") private var savedPresetsData = ""
     @State private var droppedURLs: [URL] = []
@@ -48,7 +193,7 @@ struct ContentView: View {
     @State private var destinationMode = DestinationMode.sameLocation
     @State private var options = ExportOptions()
     @State private var includeSubfolders = false
-    @State private var preservesFolderStructure = true
+    @State private var preservesFolderStructure = false
     @State private var isTargeted = false
     @State private var isConverting = false
     @State private var progressText = ""
@@ -58,26 +203,60 @@ struct ContentView: View {
     @State private var showsExecutionDetails = true
     @State private var presetName = ""
     @State private var selectedPresetID: UUID?
+    @State private var presetWindowController: NSWindowController?
+    @State private var conversionProgress = 0.0
+    @State private var completedFileCount = 0
+    @State private var totalFileCount = 0
+    @State private var logText = ""
 
     private var language: AppLanguage { AppLanguage(rawValue: appLanguage) ?? .japanese }
     private var isJapanese: Bool { language == .japanese }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                header
-                dropArea
-                presetSettings
-                settings
-                destination
-                executionDetails
-                exportArea
+        HStack(alignment: .top, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    dropArea
+                    destination
+                    settings
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(24)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack {
+                        Spacer()
+                        Button {
+                            showsPreferences = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 18))
+                        }
+                        .buttonStyle(.plain)
+                        .help(t("環境設定", "Preferences"))
+                    }
+                    .padding(.bottom, 38)
+                    Button(t("プリセット", "Presets"), action: openPresetWindow)
+                        .controlSize(.large)
+                        .frame(maxWidth: .infinity)
+                    executionDetails
+                    Spacer(minLength: 0)
+                    exportArea
+                    progressStatus
+                    logView
+                }
+                .padding(20)
+            }
+            .frame(width: 280)
         }
-        .frame(width: 540, height: 900)
+        .frame(width: (AppFontSize(rawValue: appFontSize) ?? .medium).windowWidth)
+        .frame(minHeight: 560, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
-        .alert("SPROUT", isPresented: Binding(
+        .alert("Sprout", isPresented: Binding(
             get: { alertMessage != nil },
             set: { if !$0 { alertMessage = nil } }
         )) {
@@ -86,57 +265,97 @@ struct ContentView: View {
             Text(alertMessage ?? "")
         }
         .sheet(isPresented: $showsPreferences) {
-            PreferencesView(appTheme: $appTheme, appLanguage: $appLanguage)
+            PreferencesView(appTheme: $appTheme, appLanguage: $appLanguage, appFontSize: $appFontSize)
         }
         .task(id: inspectionKey) {
             await refreshInspection()
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(accentGreen.opacity(0.14))
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(accentGreen)
-            }
-            .frame(width: 48, height: 48)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("SPROUT")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text(t("あらゆる画像をdrop、あらゆる形式へ。", "Drop any image. Convert to any format."))
-                    .font(.subheadline)
+    private var progressStatus: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(t("処理済み", "Processed"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(completedFileCount)/\(totalFileCount)")
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            Spacer()
-            Button {
-                showsPreferences = true
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 18))
-            .help(t("環境設定", "Preferences"))
+            ProgressView(value: conversionProgress, total: 1)
+                .progressViewStyle(.linear)
+                .tint(accentGreen)
         }
+        .padding(.top, 8)
+        .accessibilityLabel(t("書き出し進捗", "Export progress"))
+        .accessibilityValue("\(Int(conversionProgress * 100))%")
+    }
+
+    private var logView: some View {
+        ScrollView {
+            Text(logText.isEmpty ? t("ログはここに表示されます", "The log will appear here") : logText)
+                .font(.caption.monospaced())
+                .foregroundStyle(logText.isEmpty ? .tertiary : .secondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+        }
+        .frame(height: 90)
+        .background(Color(nsColor: .textBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay { RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)) }
     }
 
     private var dropArea: some View {
         VStack(spacing: 8) {
-            Image(systemName: droppedURLs.isEmpty ? "arrow.down.doc" : "doc.on.doc.fill")
-                .font(.system(size: 30, weight: .medium))
-                .foregroundStyle(isTargeted ? accentGreen : .secondary)
-            Text(droppedFileLabel)
-                .font(.headline)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .truncationMode(.middle)
-            Text(t("複数ファイルをまとめてドロップできます", "You can drop multiple files at once"))
+            HStack(alignment: .top) {
+                Spacer().frame(width: 24)
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: droppedURLs.isEmpty ? "arrow.down.doc" : "doc.on.doc.fill")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(isTargeted ? accentGreen : .secondary)
+                    Text(droppedFileLabel)
+                        .font(.headline)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .truncationMode(.middle)
+                    Text(t(
+                        "複数ファイル、複数フォルダをまとめてドロップできます",
+                        "Drop multiple files and folders together"
+                    ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if !droppedURLs.isEmpty {
+                    Button {
+                        droppedURLs.removeAll()
+                        progressText = ""
+                        conversionProgress = 0
+                        completedFileCount = 0
+                        totalFileCount = 0
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(t("ドロップしたデータを削除", "Clear dropped items"))
+                } else {
+                    Spacer().frame(width: 24)
+                }
+            }
+            if containsFolder {
+                Toggle(
+                    t("すべてのサブフォルダーを含める", "Include all subfolders"),
+                    isOn: $includeSubfolders
+                )
                 .font(.caption)
-                .foregroundStyle(.secondary)
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 124)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 120)
         .background(isTargeted ? accentGreen.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
@@ -154,44 +373,11 @@ struct ContentView: View {
             }
             droppedURLs = supported
             progressText = ""
+            conversionProgress = 0
+            completedFileCount = 0
+            totalFileCount = 0
             return true
         } isTargeted: { isTargeted = $0 }
-    }
-
-    private var presetSettings: some View {
-        GroupBox(t("プリセット", "Presets")) {
-            VStack(alignment: .leading, spacing: 9) {
-                HStack {
-                    Picker(t("読み込み", "Load"), selection: $selectedPresetID) {
-                        Text(t("選択してください", "Choose a preset")).tag(UUID?.none)
-                        ForEach(savedPresets) { preset in
-                            Text(preset.name).tag(UUID?.some(preset.id))
-                        }
-                    }
-                    .labelsHidden()
-                    Button(t("読み込む", "Load"), action: loadSelectedPreset)
-                        .disabled(selectedPresetID == nil)
-                    Button(t("削除", "Delete"), action: deleteSelectedPreset)
-                        .disabled(selectedPresetID == nil)
-                }
-                HStack {
-                    TextField(t("プリセット名", "Preset name"), text: $presetName)
-                    Button(t("保存", "Save"), action: saveCurrentPreset)
-                        .disabled(presetName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    Button(t("書き出す…", "Export…"), action: exportPresetFile)
-                    Button(t("読み込む…", "Import…"), action: importPresetFile)
-                }
-                HStack {
-                    Spacer()
-                    Button(t("設定を初期値へ戻す", "Reset settings")) {
-                        options = ExportOptions()
-                        destinationMode = .sameLocation
-                        destinationURL = nil
-                    }
-                }
-            }
-            .padding(.top, 4)
-        }
     }
 
     private var settings: some View {
@@ -224,52 +410,44 @@ struct ContentView: View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 10) {
                 GridRow {
                     settingLabel(t("保存サイズ", "Save size"))
-                    Picker("", selection: $options.saveSizeMode) {
-                        Text(t("指定なし", "Not specified")).tag(SaveSizeMode?.none)
-                        ForEach(SaveSizeMode.allCases) { mode in
-                            Text(saveSizeModeName(mode)).tag(SaveSizeMode?.some(mode))
-                        }
-                    }
-                    .labelsHidden()
-                    .onChange(of: options.saveSizeMode) { mode in
-                        if mode?.neverUpscales == true { options.allowsUpscaling = false }
-                    }
-                }
-                if options.saveSizeMode == .percent {
-                    GridRow {
-                        settingLabel(t("値", "Value"))
-                        HStack {
+                    HStack(spacing: 8) {
+                        if options.saveSizeMode == .percent {
                             TextField("100", value: $options.percentage, format: .number)
-                                .frame(width: 90)
+                                .frame(width: 60)
                             Text("%").foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                if options.saveSizeMode == .resolution {
-                    GridRow {
-                        settingLabel(t("解像度", "Resolution"))
-                        HStack {
+                        } else if options.saveSizeMode?.usesPixelValue == true {
+                            TextField("2000", value: $options.edgePixels, format: .number)
+                                .frame(width: 90)
+                            Text("px").foregroundStyle(.secondary)
+                        } else if options.saveSizeMode == .resolution {
                             Picker("", selection: $options.saveResolution) {
                                 ForEach(SaveResolutionPreset.allCases) { preset in
                                     Text(preset == .custom ? t("カスタム", "Custom") : "\(preset.rawValue) dpi").tag(preset)
                                 }
                             }
                             .labelsHidden()
+                            .frame(width: 95)
                             if options.saveResolution == .custom {
                                 TextField("200", value: $options.customSaveDPI, format: .number)
-                                    .frame(width: 72)
+                                    .frame(width: 58)
                                 Text("dpi").foregroundStyle(.secondary)
                             }
                         }
-                    }
-                }
-                if options.saveSizeMode?.usesPixelValue == true {
-                    GridRow {
-                        settingLabel(t("値", "Value"))
-                        HStack {
-                            TextField("2000", value: $options.edgePixels, format: .number)
-                                .frame(width: 90)
-                            Text("px").foregroundStyle(.secondary)
+
+                        Spacer(minLength: 6)
+
+                        Picker("", selection: Binding(
+                            get: { options.saveSizeMode ?? .percent },
+                            set: { options.saveSizeMode = $0 }
+                        )) {
+                            ForEach(SaveSizeMode.allCases) { mode in
+                                Text(saveSizeModeName(mode)).tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 110)
+                        .onChange(of: options.saveSizeMode) { mode in
+                            if mode?.neverUpscales == true { options.allowsUpscaling = false }
                         }
                     }
                 }
@@ -281,6 +459,7 @@ struct ContentView: View {
                         }
                     }
                     .labelsHidden()
+                    .frame(width: 230, alignment: .leading)
                 }
                 if options.format == .jpg {
                     GridRow {
@@ -328,6 +507,7 @@ struct ContentView: View {
                         }
                     }
                     .labelsHidden()
+                    .frame(width: 230, alignment: .leading)
                 }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -336,6 +516,29 @@ struct ContentView: View {
     private var advancedSettings: some View {
         Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 10) {
                 GridRow {
+                    settingLabel(t("保存", "Save"))
+                    Toggle(
+                        t("フォルダ構成を維持", "Preserve folder structure"),
+                        isOn: $preservesFolderStructure
+                    )
+                    .disabled(!containsFolder)
+                }
+                if destinationMode == .sameLocation {
+                    GridRow {
+                        settingLabel("")
+                        Toggle(
+                            t(
+                                "\(options.format.displayName)のフォルダを作成し、そこへ書き出す",
+                                "Create a \(options.format.displayName) folder and export into it"
+                            ),
+                            isOn: Binding(
+                                get: { options.sameLocationExportMode == .formatFolder },
+                                set: { options.sameLocationExportMode = $0 ? .formatFolder : .directly }
+                            )
+                        )
+                    }
+                }
+                GridRow {
                     settingLabel(t("リサイズ方式", "Resize method"))
                     Picker("", selection: $options.resizeMethod) {
                         ForEach(ResizeMethod.allCases) { method in
@@ -343,6 +546,7 @@ struct ContentView: View {
                         }
                     }
                     .labelsHidden()
+                    .frame(width: 230, alignment: .leading)
                 }
                 if inspection.pdfCount > 0 && options.saveSizeMode != .resolution {
                     GridRow {
@@ -354,6 +558,7 @@ struct ContentView: View {
                                 }
                             }
                             .labelsHidden()
+                            .frame(width: 190, alignment: .leading)
                             if options.pdfResolution == .custom {
                                 TextField("200", value: $options.customPDFDPI, format: .number)
                                     .frame(width: 72)
@@ -371,6 +576,7 @@ struct ContentView: View {
                             Text("16 bit").tag(BitDepth.bit16)
                         }
                         .labelsHidden()
+                        .frame(width: 230, alignment: .leading)
                     }
                 }
                 if options.format == .png {
@@ -397,57 +603,9 @@ struct ContentView: View {
                     Toggle(t("カラープロファイルを埋め込む", "Embed color profile"), isOn: $options.embedsColorProfile)
                 }
                 GridRow {
-                    settingLabel(t("出力ファイル名", "Output filename"))
-                    Picker("", selection: $options.filenameMode) {
-                        Text(t("元の名前", "Original name")).tag(OutputFilenameMode.original)
-                        Text(t("新しい名前", "New name")).tag(OutputFilenameMode.customName)
-                        Text(t("連番のみ", "Sequence only")).tag(OutputFilenameMode.sequenceOnly)
-                    }
-                    .labelsHidden()
-                }
-                if options.filenameMode == .customName {
-                    GridRow {
-                        settingLabel(t("新しい名前", "New name"))
-                        TextField(t("商品画像", "Product image"), text: $options.customFilename)
-                    }
-                }
-                GridRow {
-                    settingLabel(t("ファイル名加工", "Filename processing"))
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle(t("文字を追加", "Add text"), isOn: $options.addsTextToFilename)
-                        Toggle(t("文字を置換", "Replace text"), isOn: $options.replacesFilenameText)
-                    }
-                }
-                if options.addsTextToFilename {
-                    GridRow {
-                        settingLabel(t("追加文字", "Text to add"))
-                        TextField("_web", text: $options.addedFilenameText)
-                    }
-                    GridRow {
-                        settingLabel(t("位置", "Position"))
-                        HStack {
-                            Picker("", selection: $options.textAdditionPosition) {
-                                Text(t("先頭", "Beginning")).tag(TextAdditionPosition.beginning)
-                                Text(t("末尾", "End")).tag(TextAdditionPosition.end)
-                                Text(t("任意の位置", "Custom position")).tag(TextAdditionPosition.custom)
-                            }
-                            .labelsHidden()
-                            if options.textAdditionPosition == .custom {
-                                TextField("0", value: $options.customTextPosition, format: .number)
-                                    .frame(width: 60)
-                            }
-                        }
-                    }
-                }
-                if options.replacesFilenameText {
-                    GridRow {
-                        settingLabel(t("検索文字", "Find"))
-                        TextField("final", text: $options.filenameSearchText)
-                    }
-                    GridRow {
-                        settingLabel(t("置換文字", "Replace"))
-                        TextField("web", text: $options.filenameReplacementText)
-                    }
+                    DashedSeparator()
+                        .gridCellColumns(2)
+                        .padding(.vertical, 3)
                 }
                 GridRow {
                     settingLabel(t("メタデータ", "Metadata"))
@@ -456,13 +614,104 @@ struct ContentView: View {
                         Text(t("破棄", "Discard")).tag(MetadataMode.discard)
                     }
                     .labelsHidden()
+                    .frame(width: 230, alignment: .leading)
                 }
                 GridRow {
                     settingLabel("")
                     Toggle(t("作成日時を保持", "Preserve creation date"), isOn: $options.preservesFileDates)
                 }
+                GridRow {
+                    DashedSeparator()
+                        .gridCellColumns(2)
+                        .padding(.vertical, 3)
+                }
+                GridRow {
+                    settingLabel(t("ファイル名加工", "Filename processing"))
+                    filenameProcessingControls
+                }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var filenameProcessingControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array((options.filenameOperations ?? []).indices), id: \.self) { index in
+                let operation = Binding(
+                    get: { (options.filenameOperations ?? [])[index] },
+                    set: { options.filenameOperations?[index] = $0 }
+                )
+                HStack(alignment: .top, spacing: 6) {
+                    Picker("", selection: operation.kind) {
+                        Text(t("文字を追加", "Add text")).tag(FilenameOperationKind.add)
+                        Text(t("文字を置換", "Replace text")).tag(FilenameOperationKind.replace)
+                    }
+                    .labelsHidden()
+                    .frame(width: 105)
+                    VStack(alignment: .leading, spacing: 5) {
+                        if operation.wrappedValue.kind == .add {
+                            TextField(t("追加文字", "Text to add"), text: operation.text)
+                            Picker("", selection: operation.position) {
+                                Text(t("先頭", "Beginning")).tag(TextAdditionPosition.beginning)
+                                Text(t("末尾", "End")).tag(TextAdditionPosition.end)
+                                Text(t("任意の位置", "Custom")).tag(TextAdditionPosition.custom)
+                            }
+                            .labelsHidden()
+                            if operation.wrappedValue.position == .custom {
+                                HStack(spacing: 5) {
+                                    TextField("0", value: operation.customPosition, format: .number)
+                                        .frame(width: 46)
+                                    Text(t("文字目の後ろ", "characters after the start"))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } else {
+                            TextField(t("検索文字", "Find"), text: operation.text)
+                            TextField(t("置換文字", "Replace"), text: operation.replacement)
+                        }
+                    }
+                    Button {
+                        options.filenameOperations?.remove(at: index)
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(7)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 7))
+            }
+
+            Menu(t("＋ 加工を追加", "+ Add operation")) {
+                Button(t("文字を追加", "Add text")) { addFilenameOperation(.add) }
+                Button(t("文字を置換", "Replace text")) { addFilenameOperation(.replace) }
+            }
+            HStack {
+                Spacer()
+                Text(processedSampleFilename)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func addFilenameOperation(_ kind: FilenameOperationKind) {
+        if options.filenameOperations == nil {
+            options.filenameOperations = options.effectiveFilenameOperations
+        }
+        options.filenameOperations?.append(FilenameOperation(kind: kind))
+    }
+
+    private var processedSampleFilename: String {
+        let sourceURL = (try? expandedInputs(from: droppedURLs).first?.url)
+            ?? URL(fileURLWithPath: "/sample/00000.jpg")
+        return OutputFilenameBuilder.filename(
+            for: sourceURL,
+            sequence: 1,
+            format: options.format,
+            options: options
+        )
     }
 
     private var executionDetails: some View {
@@ -526,10 +775,29 @@ struct ContentView: View {
             "作成日時：\(options.preservesFileDates ? "保持" : "保持しない")",
             "File dates: \(options.preservesFileDates ? "Preserve" : "Do not preserve")"
         ))
+        lines.append(t(
+            "ファイル名：\(filenamePreview)",
+            "Filename: \(filenamePreview)"
+        ))
         if inspection.pdfCount > 0 {
             lines.append(t("PDF読込解像度：\(options.effectivePDFDPI)dpi", "PDF import: \(options.effectivePDFDPI) dpi"))
         }
         return lines
+    }
+
+    private var filenamePreview: String {
+        guard let inputs = try? expandedInputs(from: droppedURLs), !inputs.isEmpty else {
+            return t("入力待ち", "Waiting for input")
+        }
+        let names = inputs.prefix(3).enumerated().map { index, input in
+            OutputFilenameBuilder.filename(
+                for: input.url,
+                sequence: index + 1,
+                format: options.format,
+                options: options
+            )
+        }
+        return names.joined(separator: "/") + (inputs.count > 3 ? "/…" : "")
     }
 
     private var warningDetailLines: [String] {
@@ -622,25 +890,28 @@ struct ContentView: View {
     }
 
     private var destination: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                settingLabel(t("保存先", "Save to"))
-                Spacer()
+        GroupBox(t("保存", "Save")) {
+            VStack(alignment: .leading, spacing: 10) {
                 Picker("", selection: $destinationMode) {
-                    Text(t("同じ場所", "Same location")).tag(DestinationMode.sameLocation)
-                    Text(t("選択したフォルダ", "Selected folder")).tag(DestinationMode.selectedFolder)
+                    Text(t("同じ場所に保存", "Save in the same location")).tag(DestinationMode.sameLocation)
+                    Text(t("フォルダを選択", "Choose a folder")).tag(DestinationMode.selectedFolder)
                 }
                 .labelsHidden()
-                .frame(width: 170)
+                .pickerStyle(.segmented)
+
                 if destinationMode == .selectedFolder {
-                    Button(t("選択…", "Choose…"), action: chooseDestination)
+                    HStack {
+                        Button(t("フォルダを選択…", "Choose folder…"), action: chooseDestination)
+                        Text(destinationDescription)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
             }
-            Text(destinationDescription)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .foregroundStyle(.secondary)
+            .padding(.top, 4)
         }
     }
 
@@ -693,88 +964,41 @@ struct ContentView: View {
         options.validationMessage(isJapanese: isJapanese) == nil
     }
 
-    private var savedPresets: [SproutPreset] {
-        guard let data = savedPresetsData.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([SproutPreset].self, from: data)) ?? []
-    }
-
-    private func persistPresets(_ presets: [SproutPreset]) {
-        guard let data = try? JSONEncoder().encode(presets),
-              let json = String(data: data, encoding: .utf8) else { return }
-        savedPresetsData = json
-    }
-
-    private func saveCurrentPreset() {
-        let cleanName = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanName.isEmpty else { return }
-        var presets = savedPresets
-        if let index = presets.firstIndex(where: { $0.name == cleanName }) {
-            presets[index].options = options
-            presets[index].destinationMode = destinationMode
-            selectedPresetID = presets[index].id
-        } else {
-            let preset = SproutPreset(name: cleanName, options: options, destinationMode: destinationMode)
-            presets.append(preset)
-            selectedPresetID = preset.id
-        }
-        persistPresets(presets)
-    }
-
-    private func loadSelectedPreset() {
-        guard let id = selectedPresetID,
-              let preset = savedPresets.first(where: { $0.id == id }) else { return }
-        options = preset.options
-        destinationMode = preset.destinationMode
-        destinationURL = nil
-        presetName = preset.name
-    }
-
-    private func deleteSelectedPreset() {
-        guard let id = selectedPresetID else { return }
-        persistPresets(savedPresets.filter { $0.id != id })
-        selectedPresetID = nil
-        presetName = ""
-    }
-
-    private func exportPresetFile() {
-        let name = presetName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let preset = SproutPreset(
-            name: name.isEmpty ? "SPROUT Preset" : name,
-            options: options,
-            destinationMode: destinationMode
-        )
-        guard let data = try? JSONEncoder().encode(preset) else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = "\(preset.name).sproutpreset"
-        panel.allowedContentTypes = [UTType(filenameExtension: "sproutpreset") ?? .json]
-        if panel.runModal() == .OK, let url = panel.url {
-            do {
-                try data.write(to: url, options: .atomic)
-            } catch {
-                alertMessage = error.localizedDescription
+    private func openPresetWindow() {
+        if let controller = presetWindowController {
+            if controller.window?.isVisible == true {
+                controller.window?.orderOut(nil)
+                return
             }
+            controller.showWindow(nil)
+            controller.window?.makeKeyAndOrderFront(nil)
+            return
         }
-    }
-
-    private func importPresetFile() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [UTType(filenameExtension: "sproutpreset") ?? .json]
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        do {
-            let preset = try JSONDecoder().decode(SproutPreset.self, from: Data(contentsOf: url))
-            var presets = savedPresets.filter { $0.id != preset.id && $0.name != preset.name }
-            presets.append(preset)
-            persistPresets(presets)
-            selectedPresetID = preset.id
-            presetName = preset.name
-            options = preset.options
-            destinationMode = preset.destinationMode
-            destinationURL = nil
-        } catch {
-            alertMessage = t("プリセットを読み込めませんでした。", "Could not import the preset.")
-        }
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 330),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = t("Sprout プリセット", "Sprout Presets")
+        window.center()
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: PresetWindowView(
+            savedPresetsData: $savedPresetsData,
+            options: $options,
+            destinationMode: $destinationMode,
+            destinationURL: $destinationURL,
+            preservesFolderStructure: $preservesFolderStructure,
+            presetName: $presetName,
+            selectedPresetID: $selectedPresetID,
+            alertMessage: $alertMessage,
+            isJapanese: isJapanese,
+            onDone: { [weak window] in window?.orderOut(nil) }
+        ))
+        let controller = NSWindowController(window: window)
+        presetWindowController = controller
+        controller.showWindow(nil)
+        window.makeKeyAndOrderFront(nil)
     }
 
     private var droppedFileLabel: String {
@@ -803,7 +1027,11 @@ struct ContentView: View {
         let roots = droppedURLs
         let conversionLanguageIsJapanese = isJapanese
         isConverting = true
+        conversionProgress = 0
+        completedFileCount = 0
+        totalFileCount = 0
         progressText = t("変換を開始しています…", "Starting conversion…")
+        logText = t("書き出しを開始しました", "Export started")
 
         Task {
             let selectedDestination = destinationURL
@@ -820,6 +1048,8 @@ struct ContentView: View {
                             : "No supported files were found."
                     )
                 }
+                totalFileCount = filesToConvert.count
+                logText += t("\n対象：\(filesToConvert.count)ファイル", "\nFiles: \(filesToConvert.count)")
                 let outputSequence = OutputSequence()
                 for (fileIndex, input) in filesToConvert.enumerated() {
                     let outputBase = try outputBaseURL(for: input, selectedDestination: selectedDestination)
@@ -830,17 +1060,29 @@ struct ContentView: View {
                         sequence: outputSequence,
                         isJapanese: conversionLanguageIsJapanese
                     ) { completed, total in
+                        let itemProgress = total > 0 ? Double(completed) / Double(total) : 0
+                        conversionProgress = min(
+                            1,
+                            (Double(fileIndex) + itemProgress) / Double(filesToConvert.count)
+                        )
                         progressText = conversionLanguageIsJapanese
                             ? "ファイル \(fileIndex + 1)/\(filesToConvert.count)・\(completed)/\(total)"
                             : "File \(fileIndex + 1)/\(filesToConvert.count) · \(completed)/\(total)"
                     }
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        completedFileCount = fileIndex + 1
+                    }
+                    logText += "\n[\(fileIndex + 1)/\(filesToConvert.count)] \(input.url.lastPathComponent)"
                 }
                 isConverting = false
+                conversionProgress = 1
                 alertMessage = conversionLanguageIsJapanese
                     ? "\(filesToConvert.count)個のファイルを変換しました。"
                     : "Converted \(filesToConvert.count) file(s)."
+                logText += conversionLanguageIsJapanese ? "\n完了" : "\nCompleted"
             } catch {
                 isConverting = false
+                logText += "\nERROR: \(error.localizedDescription)"
                 alertMessage = error.localizedDescription
             }
         }
@@ -850,9 +1092,16 @@ struct ContentView: View {
 
     private var destinationDescription: String {
         switch destinationMode {
-        case .sameLocation: t("入力ファイルと同じ場所", "Next to each source file")
+        case .sameLocation:
+            if options.sameLocationExportMode == .formatFolder {
+                return t(
+                    "入力ファイルと同じ場所の「\(options.format.displayName)」フォルダ",
+                    "A \(options.format.displayName) folder next to each source file"
+                )
+            }
+            return t("入力ファイルと同じ場所", "Next to each source file")
         case .selectedFolder:
-            destinationURL?.path(percentEncoded: false)
+            return destinationURL?.path(percentEncoded: false)
                 ?? t("保存先を選択してください", "Choose an output folder")
         }
     }
@@ -905,7 +1154,21 @@ struct ContentView: View {
 
     private func outputBaseURL(for input: ConversionInput, selectedDestination: URL?) throws -> URL {
         if destinationMode == .sameLocation {
-            return input.url.deletingLastPathComponent()
+            if let rootFolder = input.rootFolder {
+                var base = options.sameLocationExportMode == .formatFolder
+                    ? rootFolder.appendingPathComponent(options.format.displayName, isDirectory: true)
+                    : rootFolder
+                if preservesFolderStructure && !input.relativeDirectory.isEmpty {
+                    base.appendPathComponent(input.relativeDirectory, isDirectory: true)
+                }
+                try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+                return base
+            }
+            let sourceFolder = input.url.deletingLastPathComponent()
+            guard options.sameLocationExportMode == .formatFolder else { return sourceFolder }
+            let formatFolder = sourceFolder.appendingPathComponent(options.format.displayName, isDirectory: true)
+            try FileManager.default.createDirectory(at: formatFolder, withIntermediateDirectories: true)
+            return formatFolder
         }
         guard var base = selectedDestination else {
             throw ConversionError.incompatibleOptions(t("保存先を選択してください。", "Choose an output folder."))
@@ -921,9 +1184,23 @@ struct ContentView: View {
     }
 }
 
+private struct DashedSeparator: View {
+    var body: some View {
+        GeometryReader { geometry in
+            Path { path in
+                path.move(to: CGPoint(x: 0, y: 0.5))
+                path.addLine(to: CGPoint(x: geometry.size.width, y: 0.5))
+            }
+            .stroke(Color(nsColor: .separatorColor), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+        }
+        .frame(height: 1)
+    }
+}
+
 private struct PreferencesView: View {
     @Binding var appTheme: String
     @Binding var appLanguage: String
+    @Binding var appFontSize: String
     @Environment(\.dismiss) private var dismiss
 
     private var isJapanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
@@ -944,6 +1221,12 @@ private struct PreferencesView: View {
                     Text("日本語").tag(AppLanguage.japanese.rawValue)
                     Text("English").tag(AppLanguage.english.rawValue)
                 }
+                Picker(t("フォントサイズ", "Font size"), selection: $appFontSize) {
+                    Text("S").tag(AppFontSize.small.rawValue)
+                    Text("M").tag(AppFontSize.medium.rawValue)
+                    Text("L").tag(AppFontSize.large.rawValue)
+                }
+                .pickerStyle(.segmented)
             }
 
             HStack {
@@ -953,6 +1236,49 @@ private struct PreferencesView: View {
             }
         }
         .padding(24)
-        .frame(width: 360, height: 240)
+        .frame(width: 360, height: 280)
+    }
+}
+
+struct HelpView: View {
+    @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
+    private var japanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(japanese ? "Sproutの使い方" : "Using Sprout").font(.largeTitle.bold())
+                helpSection(japanese ? "基本操作" : "Basics", japanese
+                    ? "PNG、JPG、PDF、PSD、TIFF、GIF、WebP、またはそれらを含むフォルダをドロップします。保存先、保存サイズ、形式、カラーを設定し、「画像を書き出す」を押してください。複数形式を同時に処理できます。処理状況とコピー可能なログは右下に表示されます。"
+                    : "Drop PNG, JPG, PDF, PSD, TIFF, GIF, WebP, or folders containing them. Choose the destination and output settings, then click Export images. Progress and a selectable log appear at bottom right.")
+                helpSection("PDF", japanese
+                    ? "PDFは指定した読込解像度でページごとに画像化され、その後に保存サイズ設定が適用されます。PDF内のベクター、文字、透明、RGB・CMYK・特色は最終的に1枚のピクセル画像へ統合されます。元の編集構造は保持されません。"
+                    : "Each PDF page is rasterized at the selected import DPI, then resized. Vector objects, text, transparency and color spaces are flattened into one pixel image; editable structure is not preserved.")
+                helpSection("PSD / TIFF / GIF", japanese
+                    ? "PSDはPhotoshop保存時に生成される統合画像（Composite Image）を使用します。レイヤー、マスク、スマートオブジェクト、調整レイヤー、効果は保持・再構築しません。統合画像が保存されていないPSDは読み込めない場合があります。TIFFもレイヤーを保持しません。TIFF規格は複数画像を格納できるため、そのような特殊なTIFFを読み込んだ場合は各画像を書き出します。一般的な写真TIFFは通常1画像です。アニメーションGIFは先頭フレームのみ使用します。"
+                    : "PSD uses the Composite Image generated when Photoshop saves the file. Layers, masks, smart objects, adjustments and effects are not reconstructed. PSD files saved without a composite may fail. TIFF layers are not preserved. The TIFF format can technically contain multiple images; Sprout exports each one when encountered, though ordinary photo TIFF files usually contain one. Animated GIF uses only its first frame.")
+                helpSection(japanese ? "保存サイズとリサイズ" : "Sizing and resizing", japanese
+                    ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（DPI）を選ぶと、通常画像も「指定DPI ÷ 元画像DPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にDPI情報がない場合は72dpiとして計算します。たとえば元が72dpiの画像を300dpiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
+                    : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. DPI mode also resizes ordinary images by target DPI divided by source DPI, preserving physical print size. Images without DPI metadata are treated as 72 dpi. For example, 72 to 300 dpi enlarges each dimension by about 4.17× and may reduce quality. Sprout uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
+                helpSection(japanese ? "カラー・形式" : "Color and formats", japanese
+                    ? "カラー変換後、ICCを埋め込む設定を選べます。プロファイルを埋め込まない場合、他アプリで色の見え方が変わる可能性があります。JPEGは透過を保持できません。PNG圧縮率は画質ではなく処理時間と容量に影響します。WebP品質は非可逆圧縮品質です。16 bitは対応する入力・出力形式でのみ有効です。"
+                    : "You can embed the ICC profile after color conversion. Without it, other apps may display color differently. JPEG cannot preserve transparency. PNG compression affects speed and size, not quality. WebP quality controls lossy compression. 16-bit is used only where supported.")
+                helpSection(japanese ? "ファイル名・保存先・プリセット" : "Names, destinations and presets", japanese
+                    ? "文字追加・置換は複数登録でき、上から順に適用されます。同名ファイルには (1)、(2) が付き、既存ファイルを上書きしません。同じ場所へ直接保存するか、形式名のフォルダを作成できます。フォルダ入力では構成維持を選べます。プリセットには設定値を保存しますが、選択した保存先URLそのものは保存しません。"
+                    : "Add/replace operations can be stacked and run from top to bottom. Name collisions receive (1), (2), and so on; existing files are not overwritten. Export beside sources or into a format-named folder. Folder structure can be preserved for folder input. Presets store settings, but not the chosen destination URL itself.")
+                helpSection(japanese ? "プライバシー" : "Privacy", japanese
+                    ? "変換はMac内で完結します。入力ファイルをネットワークへ送信せず、ネットワーク権限も使用しません。"
+                    : "Conversion is local to your Mac. Input files are not uploaded and no network permission is used.")
+            }
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func helpSection(_ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.title3.bold())
+            Text(body).textSelection(.enabled).lineSpacing(3)
+        }
     }
 }

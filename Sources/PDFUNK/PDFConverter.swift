@@ -95,7 +95,11 @@ enum InputInspector {
                     let scale = CGFloat(options.effectivePDFDPI) / 72
                     let width = max(1, Int((bounds.width * scale).rounded(.up)))
                     let height = max(1, Int((bounds.height * scale).rounded(.up)))
-                    if options.scaleFactor(width: width, height: height) > 1.0001 {
+                    if options.scaleFactor(
+                        width: width,
+                        height: height,
+                        sourceDPI: options.effectivePDFDPI
+                    ) > 1.0001 {
                         result.upscaleImageCount += 1
                     }
                 }
@@ -109,7 +113,9 @@ enum InputInspector {
                 result.outputImageCount += count
                 for index in 0..<count {
                     guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
-                    if options.scaleFactor(width: image.width, height: image.height) > 1.0001 {
+                    let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
+                    let dpi = (properties?[kCGImagePropertyDPIWidth] as? NSNumber)?.intValue ?? 72
+                    if options.scaleFactor(width: image.width, height: image.height, sourceDPI: dpi) > 1.0001 {
                         result.upscaleImageCount += 1
                     }
                 }
@@ -195,12 +201,13 @@ struct FileConverter {
                 rasterized.image,
                 colorSpace: colorSpace,
                 options: options,
+                sourceDPI: dpi,
                 itemNumber: index + 1,
                 isJapanese: isJapanese
             )
             let outputURL = uniqueOutputURL(
                 in: outputFolder,
-                filename: filename(for: url, sequence: sequence.next(), format: options.format, options: options)
+                filename: OutputFilenameBuilder.filename(for: url, sequence: sequence.next(), format: options.format, options: options)
             )
             try write(
                 rendered.image,
@@ -236,19 +243,21 @@ struct FileConverter {
                 }
                 let colorSpace = resolveImageColorSpace(for: options.colorProfile, sourceImage: sourceImage)
                 try validate(colorSpace: colorSpace, options: options, isJapanese: isJapanese)
+                let inputDPI = imageDPI(source: source, index: index) ?? fallbackDPI
                 let rendered = try resizeImage(
                     sourceImage,
                     colorSpace: colorSpace,
                     options: options,
+                    sourceDPI: inputDPI,
                     itemNumber: index + 1,
                     isJapanese: isJapanese
                 )
                 let sourceDPI = options.saveSizeMode == .resolution
                     ? options.saveDPI
-                    : (imageDPI(source: source, index: index) ?? fallbackDPI)
+                    : inputDPI
                 let outputURL = uniqueOutputURL(
                     in: outputFolder,
-                    filename: filename(for: url, sequence: sequence.next(), format: options.format, options: options)
+                    filename: OutputFilenameBuilder.filename(for: url, sequence: sequence.next(), format: options.format, options: options)
                 )
                 let sourceProperties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
                 try write(
@@ -278,12 +287,13 @@ struct FileConverter {
             sourceImage,
             colorSpace: colorSpace,
             options: options,
+            sourceDPI: fallbackDPI,
             itemNumber: 1,
             isJapanese: isJapanese
         )
         let outputURL = uniqueOutputURL(
             in: outputFolder,
-            filename: filename(for: url, sequence: sequence.next(), format: options.format, options: options)
+            filename: OutputFilenameBuilder.filename(for: url, sequence: sequence.next(), format: options.format, options: options)
         )
         try write(
             rendered.image,
@@ -299,47 +309,12 @@ struct FileConverter {
     }
 
     private func makeOutputFolder(for inputURL: URL, in destinationURL: URL, isJapanese: Bool) throws -> URL {
-        let folder = destinationURL.appendingPathComponent(
-            inputURL.deletingPathExtension().lastPathComponent,
-            isDirectory: true
-        )
         do {
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: destinationURL, withIntermediateDirectories: true)
         } catch {
             throw ConversionError.cannotCreateOutput(destinationURL.path(percentEncoded: false), isJapanese)
         }
-        return folder
-    }
-
-    private func filename(for inputURL: URL, sequence: Int, format: ExportFormat, options: ExportOptions) -> String {
-        let sourceStem = inputURL.deletingPathExtension().lastPathComponent
-        var name: String = switch options.filenameMode {
-        case .original: sourceStem
-        case .customName: String(format: "%@_%04d", options.customFilename, sequence)
-        case .sequenceOnly: String(format: "%04d", sequence)
-        }
-        if options.replacesFilenameText && !options.filenameSearchText.isEmpty {
-            name = name.replacingOccurrences(of: options.filenameSearchText, with: options.filenameReplacementText)
-        }
-        if options.addsTextToFilename && !options.addedFilenameText.isEmpty {
-            switch options.textAdditionPosition {
-            case .beginning:
-                name = options.addedFilenameText + name
-            case .end:
-                name += options.addedFilenameText
-            case .custom:
-                let offset = max(0, min(options.customTextPosition, name.count))
-                let index = name.index(name.startIndex, offsetBy: offset)
-                name.insert(contentsOf: options.addedFilenameText, at: index)
-            }
-        }
-        return "\(sanitizedFilename(name)).\(format.fileExtension)"
-    }
-
-    private func sanitizedFilename(_ name: String) -> String {
-        let invalid = CharacterSet(charactersIn: "/:")
-        let result = name.components(separatedBy: invalid).joined(separator: "_")
-        return result.isEmpty ? "image" : result
+        return destinationURL
     }
 
     private func uniqueOutputURL(in folder: URL, filename: String) -> URL {
@@ -379,12 +354,13 @@ struct FileConverter {
         _ image: CGImage,
         colorSpace: CGColorSpace,
         options: ExportOptions,
+        sourceDPI: Int,
         itemNumber: Int,
         isJapanese: Bool
     ) throws -> RenderedPage {
         let sourceWidth = CGFloat(image.width)
         let sourceHeight = CGFloat(image.height)
-        let scale = options.scaleFactor(width: image.width, height: image.height)
+        let scale = options.scaleFactor(width: image.width, height: image.height, sourceDPI: sourceDPI)
         let width = max(1, Int((sourceWidth * scale).rounded()))
         let height = max(1, Int((sourceHeight * scale).rounded()))
         let outputBits: Int = switch options.format {

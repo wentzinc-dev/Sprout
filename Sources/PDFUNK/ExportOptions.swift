@@ -85,13 +85,6 @@ enum BitDepth: String, CaseIterable, Identifiable, Codable {
     var id: Self { self }
 }
 
-enum OutputFilenameMode: String, CaseIterable, Identifiable, Codable {
-    case original
-    case customName
-    case sequenceOnly
-    var id: Self { self }
-}
-
 enum MetadataMode: String, CaseIterable, Identifiable, Codable {
     case keep
     case discard
@@ -122,6 +115,12 @@ enum DestinationMode: String, CaseIterable, Identifiable, Codable {
     var id: Self { self }
 }
 
+enum SameLocationExportMode: String, CaseIterable, Identifiable, Codable {
+    case directly
+    case formatFolder
+    var id: Self { self }
+}
+
 enum TextAdditionPosition: String, CaseIterable, Identifiable, Codable {
     case beginning
     case end
@@ -129,11 +128,26 @@ enum TextAdditionPosition: String, CaseIterable, Identifiable, Codable {
     var id: Self { self }
 }
 
+enum FilenameOperationKind: String, Codable, CaseIterable, Identifiable {
+    case add
+    case replace
+    var id: Self { self }
+}
+
+struct FilenameOperation: Codable, Identifiable {
+    var id = UUID()
+    var kind: FilenameOperationKind
+    var text = ""
+    var replacement = ""
+    var position: TextAdditionPosition = .end
+    var customPosition = 0
+}
+
 struct ExportOptions: Codable {
     var format: ExportFormat = .png
     var pdfResolution: PDFResolutionPreset = .dpi200
     var customPDFDPI = 200
-    var saveSizeMode: SaveSizeMode?
+    var saveSizeMode: SaveSizeMode? = .percent
     var saveResolution: SaveResolutionPreset = .dpi200
     var customSaveDPI = 200
     var percentage = 100
@@ -145,8 +159,6 @@ struct ExportOptions: Codable {
     var colorProfile: ColorProfile = .sRGB
     var embedsColorProfile = true
     var bitDepth: BitDepth = .matchSource
-    var filenameMode: OutputFilenameMode = .original
-    var customFilename = "image"
     var addsTextToFilename = false
     var addedFilenameText = ""
     var textAdditionPosition: TextAdditionPosition = .end
@@ -154,28 +166,31 @@ struct ExportOptions: Codable {
     var replacesFilenameText = false
     var filenameSearchText = ""
     var filenameReplacementText = ""
+    var filenameOperations: [FilenameOperation]?
     var metadataMode: MetadataMode = .keep
     var preservesFileDates = true
+    var sameLocationExportMode: SameLocationExportMode? = .directly
     var resizeMethod: ResizeMethod = .automatic
 
     var pdfDPI: Int { pdfResolution.value(customDPI: customPDFDPI) }
     var saveDPI: Int { saveResolution.value(customDPI: customSaveDPI) }
     var effectivePDFDPI: Int { saveSizeMode == .resolution ? saveDPI : pdfDPI }
 
-    func scaleFactor(width: Int, height: Int) -> CGFloat {
+    func scaleFactor(width: Int, height: Int, sourceDPI: Int = 72) -> CGFloat {
         guard width > 0, height > 0 else { return 1 }
         let longEdge = CGFloat(max(width, height))
         let shortEdge = CGFloat(min(width, height))
         let requested: CGFloat
         switch saveSizeMode {
-        case nil, .resolution: requested = 1
+        case nil: requested = 1
+        case .resolution?: requested = CGFloat(saveDPI) / CGFloat(max(1, sourceDPI))
         case .percent?: requested = CGFloat(percentage) / 100
         case .longEdge?, .maxLongEdge?: requested = CGFloat(edgePixels) / longEdge
         case .shortEdge?, .maxShortEdge?: requested = CGFloat(edgePixels) / shortEdge
         case .width?, .maxWidth?: requested = CGFloat(edgePixels) / CGFloat(width)
         case .height?, .maxHeight?: requested = CGFloat(edgePixels) / CGFloat(height)
         }
-        if saveSizeMode == .width || saveSizeMode == .height { return requested }
+        if saveSizeMode == .width || saveSizeMode == .height || saveSizeMode == .resolution { return requested }
         return saveSizeMode?.neverUpscales == true || !allowsUpscaling ? min(1, requested) : requested
     }
 
@@ -207,12 +222,56 @@ struct ExportOptions: Codable {
         if webPQuality < 1 || webPQuality > 100 {
             return isJapanese ? "WebP品質は1〜100で指定してください。" : "WebP quality must be between 1 and 100."
         }
-        if filenameMode == .customName && customFilename.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return isJapanese ? "新しいファイル名を入力してください。" : "Enter a new filename."
-        }
-        if replacesFilenameText && filenameSearchText.isEmpty {
+        if effectiveFilenameOperations.contains(where: { $0.kind == .replace && $0.text.isEmpty }) {
             return isJapanese ? "置換する検索文字を入力してください。" : "Enter text to find."
         }
         return nil
+    }
+
+    var effectiveFilenameOperations: [FilenameOperation] {
+        if let filenameOperations { return filenameOperations }
+        var migrated: [FilenameOperation] = []
+        if replacesFilenameText {
+            migrated.append(FilenameOperation(kind: .replace, text: filenameSearchText, replacement: filenameReplacementText))
+        }
+        if addsTextToFilename {
+            migrated.append(FilenameOperation(
+                kind: .add,
+                text: addedFilenameText,
+                position: textAdditionPosition,
+                customPosition: customTextPosition
+            ))
+        }
+        return migrated
+    }
+}
+
+enum OutputFilenameBuilder {
+    static func filename(
+        for inputURL: URL,
+        sequence: Int,
+        format: ExportFormat,
+        options: ExportOptions
+    ) -> String {
+        var name = inputURL.deletingPathExtension().lastPathComponent
+        for operation in options.effectiveFilenameOperations {
+            if operation.kind == .replace, !operation.text.isEmpty {
+                name = name.replacingOccurrences(of: operation.text, with: operation.replacement)
+            } else if operation.kind == .add, !operation.text.isEmpty {
+            switch operation.position {
+            case .beginning:
+                name = operation.text + name
+            case .end:
+                name += operation.text
+            case .custom:
+                let offset = max(0, min(operation.customPosition, name.count))
+                let index = name.index(name.startIndex, offsetBy: offset)
+                name.insert(contentsOf: operation.text, at: index)
+            }
+            }
+        }
+        let invalid = CharacterSet(charactersIn: "/:")
+        let sanitized = name.components(separatedBy: invalid).joined(separator: "_")
+        return "\(sanitized.isEmpty ? "image" : sanitized).\(format.fileExtension)"
     }
 }
