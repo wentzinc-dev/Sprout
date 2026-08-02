@@ -1,13 +1,18 @@
 import SwiftUI
 
 @main
-struct PDFUNKApp: App {
+struct SproutApp: App {
+    @AppStorage("appTheme") private var appTheme = AppTheme.system.rawValue
+    @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
+
     var body: some Scene {
-        WindowGroup("PDFUNK") {
+        WindowGroup("SPROUT") {
             ContentView()
-                .background(WindowConfigurator(size: NSSize(width: 320, height: 610)))
+                .preferredColorScheme((AppTheme(rawValue: appTheme) ?? .system).colorScheme)
+                .environment(\.locale, Locale(identifier: (AppLanguage(rawValue: appLanguage) ?? .japanese).localeIdentifier))
+                .background(WindowConfigurator(size: NSSize(width: 540, height: 900)))
         }
-        .defaultSize(width: 320, height: 610)
+        .defaultSize(width: 540, height: 900)
         .windowResizability(.contentSize)
     }
 }

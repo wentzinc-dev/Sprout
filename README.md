@@ -1,70 +1,56 @@
-# PDFUNK（ピーディーファンク）
+# SPROUT
 
-macOS専用のPDFページ画像書き出しアプリです。
+「あらゆる画像をdrop、あらゆる形式へ。」をコンセプトにした、macOSネイティブの画像変換アプリです。ファイルはMac内で処理し、ネットワークへ送信しません。
 
-開発判断、技術的制約、検証結果、次のTODOは [`docs/HANDOFF.md`](docs/HANDOFF.md) にまとめています。
+## 対応形式
 
-## 実装済みの機能
+入力:
 
-- Swift / SwiftUI、macOS 13以降
-- PDF 1ファイルまたは複数ファイルのドラッグ＆ドロップ
-- 最初のPDFと同じ場所を既定の保存先に設定（任意のフォルダへ変更可能）
-- 全ページをPNG / JPG / TIFF / PSDとして一括書き出し
-- 既定値は200 dpi / sRGB
-- 解像度は72 / 200 / 300 / 350 / Customを選択可能
-- カラープロファイルは「PDFに合わせる」/ sRGB / Adobe RGB (1998) / CMYK
-- PDF名のサブフォルダに `page-0001.ext` 形式で保存
-- ICCプロファイルと解像度メタデータを出力ファイルへ埋め込み
+- PNG
+- JPG / JPEG
+- PDF
+- PSD（保存済み統合画像）
+- TIF / TIFF
+- GIF
+- WebP
 
-JPGは品質92%、TIFFはLZW圧縮です。PSDは1ページにつき1ファイルのフラット画像として書き出します。PNG形式自体がCMYKを保持できないため、PNG＋CMYKの組み合わせはUIで実行不可になります。
+出力:
 
-「PDFに合わせる」はPDFのOutput Intentに埋め込まれたICCプロファイルを使用します。Output IntentがないPDFはsRGBへフォールバックします。ページ内で複数の色空間が使われている場合は、PDFのレンダリング結果をこの出力色空間へ統合します。
+- JPG
+- PNG
+- TIF
+- WebP
 
-## プロジェクト構成
+GIFは先頭フレーム、複数ページTIFFは各フレーム、PDFは各ページを個別画像へ変換します。PSDのレイヤー構造は保持せず、統合画像を読み込みます。
 
-```text
-PDFUNK/
-├── Package.swift
-├── README.md
-└── Sources/PDFUNK/
-    ├── PDFUNKApp.swift       # アプリのエントリポイント
-    ├── ContentView.swift     # ドロップ、設定、保存先、進捗UI
-    ├── ExportOptions.swift   # 仕様上の選択肢と既定値
-    ├── PDFConverter.swift    # PDFKit描画、ImageIO書き出し、色管理
-    ├── PSDWriter.swift       # フラットPSDとICCリソースの生成
-    └── WindowConfigurator.swift # 透明な固定サイズウィンドウ
-```
+## 設定
 
-## 開発・実行手順
+通常画面には保存サイズ、形式、JPG／WebP品質、カラー、保存先だけを表示します。その他の項目は開閉式の「詳細設定」にまとめ、開閉状態を次回起動時まで記憶します。
 
-1. Xcode 16以降をインストールする。
-2. Xcodeで `PDFUNK.xcodeproj` を開く（Finderからダブルクリックでも可）。
-3. Scheme `PDFUNK`、実行先 `My Mac` を選び、Runする。
-4. PDFをドロップし、必要なら保存先を変更して「EXPORT!」を押す。
+- 保存サイズ: 未指定 / パーセント / 解像度 / 長辺 / 短辺 / 長辺以内 / 短辺以内 / 幅 / 高さ / 幅以内 / 高さ以内
+- 保存解像度: 72 / 150 / 200 / 300 / 350 / 360 / 400 / カスタム dpi
+- リサイズ方式: 自動（推奨）/ バイキュービック / シャープ / スムーズ / ニアレストネイバー
+- PDFを含む場合のみPDF読込解像度を表示（72 / 150 / 200 / 300 / 350 / 600 / Custom dpi）
+- 元ファイルに合わせる / sRGB / Display P3 / Adobe RGB (1998)
+- JPG選択時はJPEG品質、PNG選択時はPNG圧縮率、WebP選択時はWebP品質を表示
+- PNG / TIFFではビット深度（元のまま / 8 bit / 16 bit）を選択可能
+- 出力ファイル名、ICC埋め込み、メタデータ、作成日時の保持を設定可能
+- プリセットの保存・読み込み・削除・`.sproutpreset`共有、設定初期化に対応
+- 命名は元の名前 / 新しい名前 / 連番のみ、文字追加・文字置換に対応
+- 書き出し前に入力件数、PDFページ数、生成枚数、設定、注意事項をリアルタイム表示
+- 保存先は「同じ場所」が初期値。任意のフォルダへ切り替え可能
+- テーマ: システム / ライト / ダーク
+- 言語: 日本語 / English
+- App Sandboxとユーザー選択ファイルへのsecurity-scoped access
 
-コマンドラインの型チェックは `swift build` で実行できます。`xcode-select -p` がCommand Line Toolsを指していてSDK不一致になる環境では、Xcodeをインストール後、Xcodeの Settings > Locations > Command Line Tools で使用するXcodeを選択してください。アプリアイコン、App Sandbox、Hardened Runtime、Developer ID署名設定は実装済みです。DebugはApple Development署名、ReleaseはDeveloper ID Application署名を使用します。
+WebP出力には`SDWebImageWebPCoder 0.15.0`と`libwebp 1.6.0`を使用します。処理はローカルで完結し、アプリにネットワーク権限は追加していません。
 
-## Gumroad配布用ビルドと公証
+## 開発・実行
 
-ReleaseはApple Silicon / Intel対応のUniversal Binaryです。最初にApple IDまたはApp Store Connect APIキーをKeychainへ登録します。
+1. Xcode 16以降で`PDFUNK.xcodeproj`を開く。
+2. Scheme `PDFUNK`、実行先`My Mac`を選択する。
+3. Runして対応ファイルをドロップし、保存先を明示的に選択して書き出す。
 
-```bash
-xcrun notarytool store-credentials PDFUNK-notary
-./scripts/archive-and-notarize.sh PDFUNK-notary
-```
+Xcodeのプロジェクト／ターゲット／Scheme内部名は既存参照を維持するため当面PDFUNKのままです。生成されるアプリ名は`SPROUT.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
 
-成功すると、公証チケットをstapleした `dist/export/PDFUNK.app` と、Gumroad掲載用の `dist/PDFUNK-1.0-notarized.zip` が生成されます。
-
-App Sandboxの権限は、ユーザーが選んだファイル／フォルダの読み書きだけです。PDFをドロップした後、Sandboxが書き込みを許可できるよう保存先を `SELECT…` で選択します。ネットワーク、カメラ、マイク等の権限は付与していません。
-
-旧Bundle Identifierは `com.pdfunk.app` でした。アプリ固有のUserDefaults、Application Support、Keychain、security-scoped bookmarkは保存していなかったため、移行対象データはありません。新旧ビルドはmacOS上で別アプリとして扱われます。
-
-## 開発ロードマップ / TODO
-
-- [ ] CropBox / MediaBoxのどちらを出力対象にするかを設定可能にするか決定
-- [ ] 暗号化PDF、破損PDF、極端に大きなページへのエラー・メモリ対策
-- [ ] 同名出力フォルダ・ファイルが存在する場合の上書き方針
-- [ ] 変換キャンセル、詳細な進捗、Finderで表示
-- [x] App Sandboxとユーザー選択ファイル／フォルダへのsecurity-scoped access
-- [x] Developer ID署名、公証、Universal Binaryの配布設定
-- [ ] ユニットテストと代表PDFによる画像寸法・色・回転の回帰テスト
+詳細は[`docs/HANDOFF.md`](docs/HANDOFF.md)を参照してください。

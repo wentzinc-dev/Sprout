@@ -1,129 +1,321 @@
-# PDFUNK 開発引き継ぎ
+# SPROUT 開発引き継ぎまとめ
 
-最終更新: 2026-07-25
+更新日: 2026年8月2日
 
-## 1. プロダクト概要
+## 1. プロジェクト概要
 
-PDFUNK（読み: ピーディーファンク）は、PDFの各ページを画像として一括書き出しするmacOS専用アプリです。
+SPROUTは、既存macOSアプリ「PDFUNK」をベースにした多形式画像変換アプリです。
+
+- コンセプト: `あらゆる画像をdrop、あらゆる形式へ。`
+- macOS 13以降
+- Swift / SwiftUI / AppKit / PDFKit / ImageIO
+- 変換はMac内で完結
+- ネットワークへ入力ファイルを送信しない
+- App Sandboxを維持
+
+旧名称のTo-myoは使用せず、今後は`SPROUT`で統一します。
+
+## 2. Git・プロジェクト情報
 
 - Repository: <https://github.com/wentzinc-dev/PDFUNK>
-- Swift / SwiftUI / PDFKit / Core Graphics / ImageIO
-- 対応OS: macOS 13以降
-- Xcode Scheme: `PDFUNK`
-- Bundle Identifier: `com.wentz.PDFUNK`（旧: `com.pdfunk.app`）
-- Version / Build: `1.0` / `1`
-- Team: WENTZ, K.K. (`UYQNZULLNC`)
+- 作業ブランチ: `codex/sprout-initial`
+- ブランチ基点: `origin/agent/developer-id-distribution`
+- Xcode Project: `PDFUNK.xcodeproj`
+- Scheme / Target内部名: `PDFUNK`
+- Product Name / アプリ表示名: `SPROUT`
+- 生成物: `SPROUT.app`
+- 暫定Bundle Identifier: `com.wentz.sprout`
+- Developer Team: `UYQNZULLNC`
 
-## 2. 現在の完成状態
+プロジェクト、Scheme、ソースディレクトリの内部名は既存参照を壊さないためPDFUNKのままです。
 
-基本的な変換フローは動作しています。
+現在の変更は未コミットです。
 
-1. 1つまたは複数のPDFをウィンドウへドロップする。
-2. 1つ目のPDFがあるフォルダを保存先として自動設定する。
-3. DPI、形式、カラープロファイルを選ぶ。
-4. `EXPORT!` を押す。
-5. 保存先の `PDFファイル名/` 以下へ `page-0001.ext` 形式で出力する。
+## 3. 対応入力形式
 
-複数PDFの場合はPDFごとのサブフォルダを作り、順番に処理します。保存先は `SELECT…` から変更できます。
+- PNG
+- JPG / JPEG
+- PDF
+- PSD
+- TIF / TIFF
+- GIF
+- WebP
+- 上記を含むフォルダ
 
-## 3. 対応形式と設定
+PSDはレイヤーを解析せず、保存済みの統合画像を読み込みます。GIFは先頭フレームのみ、複数ページTIFFは全フレーム、PDFは全ページを変換します。
 
-### 解像度
+## 4. 対応出力形式
 
-- 72 dpi
-- 200 dpi（初期値）
-- 300 dpi
-- 350 dpi
+- JPG
+- PNG
+- TIF
+- WebP
+
+出力形式からPSDは廃止済みです。旧`PSDWriter.swift`もターゲットから削除しています。
+
+## 5. 出力規則
+
+入力ファイルごとに同名のサブフォルダを作成します。
+
+- PDF: `入力名/page-0001.ext`
+- 画像: `入力名/image-0001.ext`
+
+複数ページ／フレームは`0001`から連番になります。
+
+## 6. 保存サイズとPDF読込解像度
+
+通常画像のサイズ変更はDPIではなく、ピクセル数または倍率を基準にします。
+
+保存サイズ:
+
+- 未指定（初期値。元のピクセルサイズを維持）
+- パーセント（1〜1000%）
+- 解像度（72 / 150 / 200 / 300 / 350 / 360 / 400 / カスタム dpi）
+- 長辺ピクセル
+- 短辺ピクセル
+- 長辺px以内
+- 短辺px以内
+- 幅
+- 高さ
+- 幅px以内
+- 高さpx以内
+
+すべて縦横比を維持します。「長辺／短辺」はアップスケール設定に従い、「以内」は指定値より小さい画像を必ず拡大しません。
+
+「幅」「高さ」は小さい画像も指定値まで拡大します。「幅以内」「高さ以内」は指定値を超える画像だけ縮小します。
+
+PDFが入力に含まれる場合のみ`PDF読込解像度`を表示します。
+
+- 72 / 150 / 200 / 300 / 350 / 600 dpi
 - Custom（1〜2400 dpi）
+- 初期値200 dpi
 
-### 出力形式
+PDFは指定DPIでラスタライズした後、ほかの画像と同じ保存サイズ設定でリサイズします。通常画像のピクセルサイズ変更にDPIは使用しません。
 
-| 形式 | 実装 | 詳細 |
-| --- | --- | --- |
-| PNG | 対応 | RGBのみ。CMYKは形式仕様上非対応 |
-| JPG | 対応 | 品質92%。RGB / CMYK |
-| TIFF | 対応 | LZW圧縮。RGB / CMYK |
-| PSD | 対応 | 8-bit、フラット画像。RGB 3ch / CMYK 4ch |
+保存サイズで`解像度`を選んだ場合、PDFはそのDPIでラスタライズし、通常画像はピクセル数を変えずDPI情報だけを書き換えます。
 
-### カラープロファイル
+`リサイズ方式`は保存サイズと形式の間に表示します。自動（推奨）、バイキュービック、バイキュービック・シャープ、バイキュービック・スムーズ、ニアレストネイバーから選択できます。自動は縮小時に弱いシャープ、拡大時に弱いスムーズ処理を使用します。等倍時は再サンプルしません。
 
-- PDFに合わせる
+「元サイズ」という選択肢は廃止しました。保存サイズを指定しなければ元のピクセルサイズを維持します。
+
+### カラー
+
+- 元ファイルに合わせる
 - sRGB（初期値）
+- Display P3
 - Adobe RGB (1998)
-- CMYK（Generic CMYK Profile）
 
-「PDFに合わせる」はPDFのOutput IntentにあるICCプロファイルを使用します。Output Intentが取得できない場合はsRGBへフォールバックします。ICCとDPIメタデータは出力へ埋め込みます。
+ユーザーが直接選択するCMYK項目は廃止しました。ただし「元ファイルに合わせる」でCMYK入力を検出する可能性はあります。PNG / WebPへCMYKを書き出せない場合はエラーにします。
 
-PNGはCMYKを保持できないため、`PNG + CMYK` はUIで実行不可です。「PDFに合わせる」でPDFのOutput IntentがCMYKだった場合も、PNGではなくJPG / TIFF / PSDを選ぶようエラー表示します。
+### 保存先
 
-## 4. UIとブランドの決定事項
+- 同じ場所（初期値）
+- 選択したフォルダ
 
-- 黒、生成り、蛍光マゼンタの3色が中心
-- パンクZINE、コピー、切り貼り紙の質感
-- UIフォントはSF Rounded Black / Bold
-- 黒い本体の表示幅は280px
-- 透明描画領域を含むウィンドウは320 × 610px固定
-- 標準タイトルバーを使わない透明なボーダーレスウィンドウ
-- ロゴを黒い本体の左上から透明領域へ張り出して表示
-- ウィンドウ背景をドラッグして移動
-- 右上の独自ボタンで閉じる
-- 本体角丸18px、ドロップ領域12px、設定カード10px
+「選択したフォルダ」ではNSOpenPanelから保存先を選びます。「同じ場所」はSandboxのsecurity scopeによって親フォルダへ書き込めない場合があり、その場合は保存先を切り替えるようエラー表示します。
 
-ロゴは切り貼りの `PDFUNK` ワードマークです。アプリアイコンは、黒背景に生成りのPDF用紙、マゼンタの爆発、黒い下向き矢印を組み合わせたPOPパンク案を採用しています。
+## 7. 追加設定
 
-## 5. 主要ファイル
+設定案Aを採用し、開閉式の`詳細設定`を表示します。開閉状態はUserDefaultsへ保存し、次回起動時も維持します。
+
+通常表示:
+
+- 保存サイズ
+- 形式
+- JPEG品質（JPGのみ）
+- WebP品質（WebPのみ）
+- カラー
+- 保存先
+
+詳細設定:
+
+- リサイズ方式
+- PDF読込解像度（PDFを含む場合）
+- ビット深度（PNG / TIFFのみ）
+- PNG圧縮率（PNGのみ）
+- カラープロファイルを埋め込む
+- メタデータ
+- 作成日時を保持
+- 出力ファイル名
+
+環境設定には表示項目ごとのON/OFFを追加しません。
+
+### アップスケール
+
+現在はUIへ表示せず、小さい画像を元サイズで維持します。「長辺px以内」「短辺px以内」もアップスケールしません。設定UIを再導入する場合に備えて内部設定は維持しています。
+
+### JPEG品質
+
+出力形式がJPGのときだけ表示します。
+
+- 1〜100
+- 初期値92
+
+WebP品質はWebP選択時に1〜100で設定します。
+
+### 形式別設定
+
+- JPG: JPEG品質 1〜100（初期値92）
+- PNG: PNG圧縮率 0〜9（初期値6。画質には影響しない）
+- WebP: WebP品質 1〜100（初期値92。Losslessは未実装）
+- PNG / TIFF: ビット深度（元のまま / 8 bit / 16 bit）
+
+### 出力ファイル名
+
+- 元の名前（初期値）
+- 新しい名前（指定名＋全体連番）
+- 連番のみ
+
+文字追加と文字置換を別項目として組み合わせられます。文字追加位置は先頭、末尾、任意の文字位置から選択します。
+
+同名が発生した場合は従来どおり`(1)`を付けて衝突を回避します。
+
+### カラー・メタデータ
+
+- `カラープロファイルを埋め込む`は初期値ON。OFFでもカラー変換は実行します。
+- メタデータは`保持`（初期値）または`破棄`。
+- `作成日時を保持`は初期値ON。メタデータを破棄してもファイルの作成日時・更新日時は可能な範囲で引き継ぎます。
+
+### フォルダ設定
+
+現在はUIへ表示せず、ドロップしたフォルダ直下の対応ファイルだけを変換します。サブフォルダ再帰とフォルダ構成維持の内部処理は、設定UIを再導入する場合に備えて残しています。
+
+### 設定案B
+
+以下を実装済みです。
+
+- 設定一式のプリセット保存・読み込み・削除
+- `.sproutpreset`（JSON）の書き出し・読み込み
+- 保存先種別を保存し、保存先URL自体は保存しない
+- 現在の設定を初期値へ戻す
+- 出力名を「元の名前」「新しい名前」「連番のみ」から選択
+- ファイル名の先頭・末尾・任意位置への文字追加
+- 検索文字と置換文字による文字置換
+- 幅／高さ／幅以内／高さ以内の保存サイズ
+
+新しい名前と連番のみは、混在ファイルや複数ページPDFを含む書き出し全体で連番を継続します。連番開始番号、桁数、区切り文字、正規表現、Lossless WebP、32bit Floatは未実装です。TIFFとPSDのレイヤーは保持せず統合画像として扱います。
+
+## 8. UI・環境設定
+
+- タイトル: `SPROUT`
+- キャッチコピー: `あらゆる画像をdrop、あらゆる形式へ。`
+- ドロップ表示: `（PNG、JPG、PDF、PSD、TIF、GIF、WebP）をここへドロップ`
+- 緑を基調にしたmacOSネイティブUI
+- 右上の歯車から環境設定を表示
+- 「画像を書き出す」の直前にリアルタイムの詳細表示
+
+詳細表示には入力ファイル数、形式別件数、PDF件数／総ページ数、PSD件数、生成予定枚数、出力形式、保存サイズ、カラー、保存先、メタデータ、PDF読込解像度を表示します。
+
+必要な場合だけ次の注意を表示します。
+
+- PDFのラスタライズDPI
+- アップスケール件数
+- PSDの統合画像処理
+- 複数ページPDFのページ別出力
+- GIFの先頭フレーム処理
+- JPGの透明部分を白背景へ統合
+- 同名時の`(1)`付与
+
+環境設定:
+
+- テーマ: システム / ライト / ダーク
+- 言語: 日本語 / English
+
+テーマと言語はUserDefaultsへ保存します。画面内の主要文言と変換エラーは日本語・英語を切り替えます。
+
+## 9. アプリアイコン
+
+新芽が密集したトップビューの仮アイコンを使用しています。
+
+- マスター: `Resources/SPROUT-AppIcon-Provisional.png`
+- AppIcon: 16〜1024pxを生成済み
+- 文字なし
+- 深緑背景と黄緑の双葉
+
+これは元のB案画像がリポジトリになかったため、仕様文から生成した代替案です。正式アイコン提供後に差し替えます。
+
+## 10. WebP実装
+
+macOSのImageIOはWebP入力を読めますが、この環境ではWebP出力を提供しません。そのためSwift Package Managerで次を使用します。
+
+- `SDWebImageWebPCoder 0.15.0`
+- `SDWebImage 5.21.7`
+- `libwebp 1.6.0`
+
+解決バージョンは`PDFUNK.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`に保存しています。
+
+WebP変換はローカルライブラリ内で完結し、ネットワーク権限は追加していません。
+
+## 11. Sandbox・配布設定
+
+- App Sandbox: 有効
+- User Selected Files: read-write
+- security-scoped resource accessを変換中に開始・終了
+- Hardened Runtime: 有効
+- Release: Developer ID Application
+- Releaseの`ONLY_ACTIVE_ARCH`: NO
+- Debugの`ONLY_ACTIVE_ARCH`: YES
+
+Debugを現在のMacのarm64だけにした理由は、Swift Packageをarm64で構築した状態でアプリだけx86_64も同時リンクするとWebP関連のUndefined symbolが発生するためです。Release／generic macOSビルドではarm64とx86_64のUniversal Binary生成を確認済みです。
+
+## 12. ビルド検証
+
+確認済み:
+
+- Xcode Debugビルド成功
+- WebP依存パッケージの解決成功
+- arm64 Debugアプリ生成成功
+- arm64 / x86_64 Universal Binary生成成功
+- macOS 13 deployment target
+- `SPROUT.app`、`com.wentz.sprout`のInfo.plist生成
+- Xcodeプロジェクト構文チェック
+
+未確認:
+
+- Mac Development証明書がローカルにないため、署名付きDebugビルド
+- Developer IDによる実Archive、公証、staple
+- Developer Portal上で`com.wentz.sprout`が使用可能か
+- 全入力×全出力の実ファイル回帰テスト
+
+## 13. 次に必要な検証
+
+代表サンプルを用意し、次を確認します。
+
+1. PNG / JPG / PDF / PSD / TIF / GIF / WebPの読み込み
+2. JPG / PNG / TIF / WebPの書き出し
+3. PDFの全ページ数、回転、指定DPIと保存サイズの二段階処理
+4. GIF先頭フレーム / TIFF全フレーム
+5. PSD統合画像の見た目
+6. sRGB / Display P3 / Adobe RGB / 元ファイルICC
+7. PNG / WebPの透明度
+8. JPEG品質1、50、92、100の差
+9. PDF Custom DPIの1、200、2400と範囲外エラー
+10. 保存サイズ6モード、倍率、アップスケール有無
+11. フォルダ直下のみ／サブフォルダ込み
+12. フォルダ構成維持のオン／オフ
+13. 「同じ場所」と「選択したフォルダ」のSandbox動作
+14. 日本語／英語、システム／ライト／ダーク
+15. 詳細表示の件数、設定、注意事項のリアルタイム更新
+
+## 14. 主要ファイル
 
 | ファイル | 役割 |
 | --- | --- |
-| `Sources/PDFUNK/PDFUNKApp.swift` | Appエントリポイントと固定ウィンドウサイズ |
-| `Sources/PDFUNK/ContentView.swift` | UI、ドロップ、保存先、設定、進捗 |
-| `Sources/PDFUNK/ExportOptions.swift` | 形式、DPI、色設定と組み合わせ検証 |
-| `Sources/PDFUNK/PDFConverter.swift` | PDF描画、色空間、ImageIO出力、Output Intent取得 |
-| `Sources/PDFUNK/PSDWriter.swift` | 依存ライブラリなしのフラットPSD生成 |
-| `Sources/PDFUNK/WindowConfigurator.swift` | 透明・固定サイズ・ボーダーレスNSWindow設定 |
-| `Resources/Assets.xcassets/PDFUNKLogo.imageset` | UIロゴ |
-| `Resources/Assets.xcassets/AppIcon.appiconset` | macOS用AppIcon各サイズ |
-| `Resources/PDFUNK-AppIcon-Master.png` | 透過済み1024pxアイコンマスター |
+| `Sources/PDFUNK/PDFUNKApp.swift` | SPROUTのエントリポイント、テーマ・言語環境、ウインドウサイズ |
+| `Sources/PDFUNK/ContentView.swift` | UI、ドロップ、フォルダ展開、保存先、詳細設定、進捗 |
+| `Sources/PDFUNK/ExportOptions.swift` | 保存サイズ6モード、PDF DPI、アップスケール、形式、JPEG品質、カラー |
+| `Sources/PDFUNK/PDFConverter.swift` | 入力検査、PDF／画像入力、リサイズ、色空間、ImageIO／WebP出力 |
+| `Sources/PDFUNK/WindowConfigurator.swift` | 標準macOSウインドウ設定 |
+| `Config/PDFUNK.entitlements` | Sandbox entitlement |
+| `Package.swift` | SwiftPM構成 |
+| `scripts/archive-and-notarize.sh` | SPROUT配布スクリプト |
 
-通常は `PDFUNK.xcodeproj` をXcodeで開いて作業します。`Package.swift` は初期構成の名残として残っていますが、現在の正式なアプリ設定とアセット管理はXcodeプロジェクト側です。
+## 15. 注意事項
 
-## 6. 検証済み事項
-
-- XcodeによるDebugビルド: 成功
-- PNG: RGB、sRGB、DPIメタデータ
-- JPG: Adobe RGB / CMYK、DPIメタデータ
-- TIFF: CMYK、Generic CMYK Profile、LZW
-- PSD: RGB 3チャンネル / CMYK 4チャンネルとしてファイル判定
-- 複数PDFの連続処理
-- macOS用AppIconの16〜1024px生成とXcode登録
-
-ローカル環境ではCommand Line Tools単体のSwiftとSDKにビルド番号不一致があったため、検証には `/Applications/Xcode.app/Contents/Developer` のツールチェーンを明示して使用しました。Xcode GUIからの実行には影響しません。
-
-## 7. 現在の制約・次のTODO
-
-優先度が高い順の候補です。
-
-1. 変換をバックグラウンド化し、大きなPDFでもUIを固めない。
-2. 変換キャンセルを追加する。
-3. 同名PDFや既存出力ファイルの上書き方針を決める。
-4. 暗号化・破損PDFと巨大ページのエラー／メモリ対策を強化する。
-5. MediaBox固定からCropBox選択へ拡張するか決める。
-6. 代表PDFによる寸法、回転、色、ICCの自動回帰テストを追加する。
-7. 選択済み保存先を次回起動時にも復元する場合はsecurity-scoped bookmarkを追加する。
-
-現在のPSDは編集レイヤーを持たないフラットPSDです。レイヤー付きPSDは別機能として設計が必要です。
-
-## 8. 配布設定
-
-- Hardened RuntimeおよびApp Sandboxを有効化
-- Sandbox権限はユーザー選択ファイル／フォルダのread-writeのみ
-- DebugはApple Development、ReleaseはDeveloper ID Applicationで署名
-- Releaseはarm64 / x86_64のUniversal Binary
-- `scripts/archive-and-notarize.sh` でDeveloper IDアーカイブ、Apple公証、staple、Gatekeeper検証を実行
-- 旧Bundle IDで永続化していた独自データはないため、データ移行処理は不要
-
-## 9. 次の開発セッションへ渡す文面
-
-別環境やWeb版へ相談する場合は、次の文面とこのファイルを渡せば再開できます。
-
-> GitHubの `wentzinc-dev/PDFUNK` を確認してください。macOS 13以降向けのSwiftUI製PDF画像変換アプリです。現在の仕様と判断経緯は `docs/HANDOFF.md` にあります。既存のパンク／POPなUI、280px幅の黒い本体、透明カスタムウィンドウ、PDFUNKロゴ、AppIcon、対応形式と色管理を維持してください。作業前にREADME、HANDOFF、git statusを確認し、変更後はXcodeのPDFUNK Schemeでビルドしてください。
+- PDFUNKのmasterや正式配布ブランチへ直接変更を入れない。
+- 現在の変更は未コミットなので、作業前に`git status`を確認する。
+- 新しいネットワーク権限を追加しない。
+- PSDレイヤー構造を保持する実装ではない。
+- GIFはアニメーションを維持せず、先頭フレームだけを静止画として出力する。
+- 複数ページTIFFは各フレームを別々の静止画にする。
+- 同名出力ファイルがある場合は` (1)`、` (2)`を付けて回避する。

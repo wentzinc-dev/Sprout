@@ -16,11 +16,13 @@ struct WindowConfigurator: NSViewRepresentable {
 
     private func configure(_ window: NSWindow?) {
         guard let window else { return }
-        window.styleMask = [.borderless]
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = false
-        window.isMovableByWindowBackground = true
+        window.title = "SPROUT"
+        window.titleVisibility = .visible
+        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        window.hasShadow = true
+        window.isMovableByWindowBackground = false
         window.minSize = size
         window.maxSize = size
         window.setContentSize(size)

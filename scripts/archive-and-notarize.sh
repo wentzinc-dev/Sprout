@@ -9,10 +9,10 @@ fi
 readonly notary_profile="$1"
 readonly project_root="${0:A:h:h}"
 readonly artifacts_dir="$project_root/dist"
-readonly archive_path="$artifacts_dir/PDFUNK.xcarchive"
+readonly archive_path="$artifacts_dir/SPROUT.xcarchive"
 readonly export_path="$artifacts_dir/export"
-readonly zip_path="$artifacts_dir/PDFUNK-1.0.zip"
-readonly notarized_zip_path="$artifacts_dir/PDFUNK-1.0-notarized.zip"
+readonly zip_path="$artifacts_dir/SPROUT-1.0.zip"
+readonly notarized_zip_path="$artifacts_dir/SPROUT-1.0-notarized.zip"
 
 mkdir -p "$artifacts_dir"
 
@@ -28,13 +28,13 @@ xcodebuild -exportArchive \
   -exportPath "$export_path" \
   -exportOptionsPlist "$project_root/Config/ExportOptions.plist"
 
-ditto -c -k --keepParent "$export_path/PDFUNK.app" "$zip_path"
+ditto -c -k --keepParent "$export_path/SPROUT.app" "$zip_path"
 xcrun notarytool submit "$zip_path" --keychain-profile "$notary_profile" --wait
-xcrun stapler staple "$export_path/PDFUNK.app"
-xcrun stapler validate "$export_path/PDFUNK.app"
-codesign --verify --deep --strict --verbose=2 "$export_path/PDFUNK.app"
-spctl --assess --type execute --verbose=2 "$export_path/PDFUNK.app"
-ditto -c -k --keepParent "$export_path/PDFUNK.app" "$notarized_zip_path"
+xcrun stapler staple "$export_path/SPROUT.app"
+xcrun stapler validate "$export_path/SPROUT.app"
+codesign --verify --deep --strict --verbose=2 "$export_path/SPROUT.app"
+spctl --assess --type execute --verbose=2 "$export_path/SPROUT.app"
+ditto -c -k --keepParent "$export_path/SPROUT.app" "$notarized_zip_path"
 
-print "Notarized app: $export_path/PDFUNK.app"
+print "Notarized app: $export_path/SPROUT.app"
 print "Gumroad package: $notarized_zip_path"
