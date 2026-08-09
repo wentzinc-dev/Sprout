@@ -12,7 +12,7 @@
 		A10000000000000000000014 /* PDFConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* PDFConverter.swift */; };
 		A10000000000000000000015 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* Assets.xcassets */; };
 		A10000000000000000000016 /* WindowConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000007 /* WindowConfigurator.swift */; };
-		A10000000000000000000017 /* PSDWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* PSDWriter.swift */; };
+		A10000000000000000000018 /* SDWebImageWebPCoder in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000091 /* SDWebImageWebPCoder */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,17 +20,19 @@
 		A10000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000000000000000000003 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportOptions.swift; sourceTree = "<group>"; };
 		A10000000000000000000004 /* PDFConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFConverter.swift; sourceTree = "<group>"; };
-		A10000000000000000000005 /* PDFUNK.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PDFUNK.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000005 /* Sprout.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sprout.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000007 /* WindowConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowConfigurator.swift; sourceTree = "<group>"; };
-		A10000000000000000000008 /* PSDWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PSDWriter.swift; sourceTree = "<group>"; };
+		A10000000000000000000009 /* PDFUNK.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Config/PDFUNK.entitlements; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A10000000000000000000021 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-			files = ();
+			files = (
+				A10000000000000000000018 /* SDWebImageWebPCoder in Frameworks */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -40,6 +42,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000031 /* PDFUNK */,
+				A10000000000000000000009 /* PDFUNK.entitlements */,
 				A10000000000000000000006 /* Assets.xcassets */,
 				A10000000000000000000032 /* Products */,
 			);
@@ -53,7 +56,6 @@
 				A10000000000000000000003 /* ExportOptions.swift */,
 				A10000000000000000000004 /* PDFConverter.swift */,
 				A10000000000000000000007 /* WindowConfigurator.swift */,
-				A10000000000000000000008 /* PSDWriter.swift */,
 			);
 			path = Sources/PDFUNK;
 			sourceTree = SOURCE_ROOT;
@@ -61,7 +63,7 @@
 		A10000000000000000000032 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000005 /* PDFUNK.app */,
+				A10000000000000000000005 /* Sprout.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -80,8 +82,11 @@
 			buildRules = ();
 			dependencies = ();
 			name = PDFUNK;
-			productName = PDFUNK;
-			productReference = A10000000000000000000005 /* PDFUNK.app */;
+			packageProductDependencies = (
+				A10000000000000000000091 /* SDWebImageWebPCoder */,
+			);
+			productName = Sprout;
+			productReference = A10000000000000000000005 /* Sprout.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -103,6 +108,9 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (en, Base, ja);
 			mainGroup = A10000000000000000000030;
+			packageReferences = (
+				A10000000000000000000090 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */,
+			);
 			productRefGroup = A10000000000000000000032 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -129,7 +137,6 @@
 				A10000000000000000000013 /* ExportOptions.swift in Sources */,
 				A10000000000000000000014 /* PDFConverter.swift in Sources */,
 				A10000000000000000000016 /* WindowConfigurator.swift in Sources */,
-				A10000000000000000000017 /* PSDWriter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -152,32 +159,48 @@
 		}; name = Release; };
 		A10000000000000000000072 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
 			ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+			ARCHS = "$(ARCHS_STANDARD)";
+			CODE_SIGN_ENTITLEMENTS = Config/PDFUNK.entitlements;
+			CODE_SIGN_IDENTITY = "Apple Development";
 			CODE_SIGN_STYLE = Automatic;
 			COMBINE_HIDPI_IMAGES = YES;
 			CURRENT_PROJECT_VERSION = 1;
+			DEVELOPMENT_TEAM = UYQNZULLNC;
+			ENABLE_APP_SANDBOX = YES;
 			ENABLE_HARDENED_RUNTIME = YES;
 			ENABLE_PREVIEWS = YES;
+			ENABLE_USER_SELECTED_FILES = readwrite;
 			GENERATE_INFOPLIST_FILE = YES;
-			INFOPLIST_KEY_CFBundleDisplayName = PDFUNK;
+				INFOPLIST_KEY_CFBundleDisplayName = Sprout;
 			INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
-			MARKETING_VERSION = 0.1.0;
-			PRODUCT_BUNDLE_IDENTIFIER = com.pdfunk.app;
-			PRODUCT_NAME = "$(TARGET_NAME)";
+			MARKETING_VERSION = 1.0;
+			ONLY_ACTIVE_ARCH = YES;
+			PRODUCT_BUNDLE_IDENTIFIER = com.wentz.sprout;
+				PRODUCT_NAME = Sprout;
 			SWIFT_EMIT_LOC_STRINGS = YES;
 			SWIFT_VERSION = 5.0;
 		}; name = Debug; };
 		A10000000000000000000073 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
 			ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-			CODE_SIGN_STYLE = Automatic;
+			ARCHS = "$(ARCHS_STANDARD)";
+			CODE_SIGN_ENTITLEMENTS = Config/PDFUNK.entitlements;
+			CODE_SIGN_IDENTITY = "Developer ID Application";
+			CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
+			CODE_SIGN_STYLE = Manual;
 			COMBINE_HIDPI_IMAGES = YES;
 			CURRENT_PROJECT_VERSION = 1;
+			DEVELOPMENT_TEAM = UYQNZULLNC;
+			ENABLE_APP_SANDBOX = YES;
 			ENABLE_HARDENED_RUNTIME = YES;
+			ENABLE_USER_SELECTED_FILES = readwrite;
 			GENERATE_INFOPLIST_FILE = YES;
-			INFOPLIST_KEY_CFBundleDisplayName = PDFUNK;
+				INFOPLIST_KEY_CFBundleDisplayName = Sprout;
 			INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.graphics-design";
-			MARKETING_VERSION = 0.1.0;
-			PRODUCT_BUNDLE_IDENTIFIER = com.pdfunk.app;
-			PRODUCT_NAME = "$(TARGET_NAME)";
+			MARKETING_VERSION = 1.0;
+			ONLY_ACTIVE_ARCH = NO;
+			OTHER_CODE_SIGN_FLAGS = "--timestamp";
+			PRODUCT_BUNDLE_IDENTIFIER = com.wentz.sprout;
+				PRODUCT_NAME = Sprout;
 			SWIFT_EMIT_LOC_STRINGS = YES;
 			SWIFT_VERSION = 5.0;
 		}; name = Release; };
@@ -197,6 +220,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10000000000000000000090 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SDWebImage/SDWebImageWebPCoder.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.15.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000091 /* SDWebImageWebPCoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000090 /* XCRemoteSwiftPackageReference "SDWebImageWebPCoder" */;
+			productName = SDWebImageWebPCoder;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A10000000000000000000050 /* Project object */;
 }
