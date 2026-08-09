@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 struct WindowConfigurator: NSViewRepresentable {
@@ -24,18 +25,44 @@ struct WindowConfigurator: NSViewRepresentable {
         guard let window else { return }
         window.title = "Sprout"
         window.titleVisibility = .visible
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.styleMask = [.titled, .closable, .miniaturizable]
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         window.hasShadow = true
         window.isMovableByWindowBackground = false
-        window.minSize = NSSize(width: size.width, height: 560)
-        window.maxSize = NSSize(width: size.width, height: 10_000)
         if !coordinator.didSetInitialSize {
             coordinator.didSetInitialSize = true
             window.setContentSize(size)
-        } else if abs(window.contentLayoutRect.width - size.width) > 1 {
-            window.setContentSize(NSSize(width: size.width, height: window.contentLayoutRect.height))
+            window.minSize = size
+            window.maxSize = size
+        } else if abs(window.contentLayoutRect.width - size.width) > 1
+                    || abs(window.contentLayoutRect.height - size.height) > 1 {
+            window.minSize = NSSize(width: 1, height: 1)
+            window.maxSize = NSSize(width: 10_000, height: 10_000)
+            let targetContent = NSRect(origin: .zero, size: size)
+            var targetFrame = window.frameRect(forContentRect: targetContent)
+            targetFrame.origin.x = window.frame.origin.x
+            targetFrame.origin.y = window.frame.maxY - targetFrame.height
+            let isClosing = targetFrame.width < window.frame.width
+                || targetFrame.height < window.frame.height
+            let changesHeight = abs(targetFrame.height - window.frame.height) > 1
+            if isClosing || changesHeight {
+                window.setFrame(targetFrame, display: true, animate: false)
+                window.minSize = size
+                window.maxSize = size
+            } else {
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = 0.28
+                    context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                    window.animator().setFrame(targetFrame, display: true)
+                } completionHandler: {
+                    window.minSize = size
+                    window.maxSize = size
+                }
+            }
+        } else {
+            window.minSize = size
+            window.maxSize = size
         }
     }
 }

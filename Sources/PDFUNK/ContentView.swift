@@ -188,6 +188,7 @@ struct ContentView: View {
     @AppStorage("appFontSize") private var appFontSize = AppFontSize.medium.rawValue
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
     @AppStorage("savedPresets") private var savedPresetsData = ""
+    @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
     @State private var droppedURLs: [URL] = []
     @State private var destinationURL: URL?
     @State private var destinationMode = DestinationMode.sameLocation
@@ -198,7 +199,6 @@ struct ContentView: View {
     @State private var isConverting = false
     @State private var progressText = ""
     @State private var alertMessage: String?
-    @State private var showsPreferences = false
     @State private var inspection = InputInspection()
     @State private var showsExecutionDetails = true
     @State private var presetName = ""
@@ -211,50 +211,76 @@ struct ContentView: View {
 
     private var language: AppLanguage { AppLanguage(rawValue: appLanguage) ?? .japanese }
     private var isJapanese: Bool { language == .japanese }
+    private var uiFontSize: AppFontSize { AppFontSize(rawValue: appFontSize) ?? .medium }
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    dropArea
-                    destination
-                    settings
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Spacer()
+                            if !showsInspectorSidebar {
+                                Button {
+                                    showsInspectorSidebar = true
+                                } label: {
+                                    Image(systemName: "chevron.right.2")
+                                        .font(.system(size: 11 * uiFontSize.scale, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .help(t("サイドバーを表示", "Show inspector sidebar"))
+                            }
+                        }
+                        dropArea
+                            .frame(width: 280 * uiFontSize.scale)
+                        destination
+                        settings
+                    }
+                    .padding(16 * uiFontSize.scale)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                exportArea
+                    .padding(.horizontal, 16 * uiFontSize.scale)
+                    .padding(.bottom, 16 * uiFontSize.scale)
             }
+            .frame(width: uiFontSize.compactWidth)
 
-            Divider()
-
-            ScrollView {
+            if showsInspectorSidebar {
+                Divider()
+                ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
                         Spacer()
                         Button {
-                            showsPreferences = true
+                            showsInspectorSidebar = false
                         } label: {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 18))
+                            Image(systemName: "chevron.left.2")
+                                .font(.system(size: 11 * uiFontSize.scale, weight: .semibold))
                         }
                         .buttonStyle(.plain)
-                        .help(t("環境設定", "Preferences"))
+                        .help(t("サイドバーを閉じる", "Hide inspector sidebar"))
                     }
-                    .padding(.bottom, 38)
                     Button(t("プリセット", "Presets"), action: openPresetWindow)
                         .controlSize(.large)
                         .frame(maxWidth: .infinity)
                     executionDetails
                     Spacer(minLength: 0)
-                    exportArea
                     progressStatus
                     logView
                 }
-                .padding(20)
+                .padding(18 * uiFontSize.scale)
+                }
+                .frame(width: uiFontSize.sidebarWidth)
+                .transition(.move(edge: .trailing))
             }
-            .frame(width: 280)
         }
-        .frame(width: (AppFontSize(rawValue: appFontSize) ?? .medium).windowWidth)
-        .frame(minHeight: 560, maxHeight: .infinity)
+        .frame(
+            width: uiFontSize.compactWidth + (showsInspectorSidebar ? uiFontSize.sidebarWidth : 0),
+            height: max(
+                uiFontSize.compactHeight,
+                showsAdvancedSettings ? uiFontSize.expandedHeight : 0
+            )
+        )
         .background(Color(nsColor: .windowBackgroundColor))
         .alert("Sprout", isPresented: Binding(
             get: { alertMessage != nil },
@@ -263,9 +289,6 @@ struct ContentView: View {
             Button("OK") { alertMessage = nil }
         } message: {
             Text(alertMessage ?? "")
-        }
-        .sheet(isPresented: $showsPreferences) {
-            PreferencesView(appTheme: $appTheme, appLanguage: $appLanguage, appFontSize: $appFontSize)
         }
         .task(id: inspectionKey) {
             await refreshInspection()
@@ -285,7 +308,6 @@ struct ContentView: View {
             }
             ProgressView(value: conversionProgress, total: 1)
                 .progressViewStyle(.linear)
-                .tint(accentGreen)
         }
         .padding(.top, 8)
         .accessibilityLabel(t("書き出し進捗", "Export progress"))
@@ -315,7 +337,7 @@ struct ContentView: View {
                 VStack(spacing: 8) {
                     Image(systemName: droppedURLs.isEmpty ? "arrow.down.doc" : "doc.on.doc.fill")
                         .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(isTargeted ? accentGreen : .secondary)
+                        .foregroundStyle(isTargeted ? Color.accentColor : .secondary)
                     Text(droppedFileLabel)
                         .font(.headline)
                         .lineLimit(2)
@@ -327,6 +349,13 @@ struct ContentView: View {
                     ))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if inspection.fileCount > 0 {
+                        Text(dropInspectionSummary)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                    }
                 }
                 Spacer()
                 if !droppedURLs.isEmpty {
@@ -355,12 +384,12 @@ struct ContentView: View {
             }
         }
         .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 120)
-        .background(isTargeted ? accentGreen.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
+        .frame(maxWidth: .infinity, minHeight: 80)
+        .background(isTargeted ? Color.accentColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isTargeted ? accentGreen : borderColor, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                .strokeBorder(isTargeted ? Color.accentColor : borderColor, lineWidth: 1)
         }
         .dropDestination(for: URL.self) { urls, _ in
             let supported = urls.filter { isSupportedFile($0) || isDirectory($0) }
@@ -387,12 +416,28 @@ struct ContentView: View {
 
                 Divider()
 
-                DisclosureGroup(isExpanded: $showsAdvancedSettings) {
+                Button {
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        showsAdvancedSettings.toggle()
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: showsAdvancedSettings ? "chevron.down" : "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .frame(width: 12)
+                        Text(t("詳細設定", "Advanced settings"))
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if showsAdvancedSettings {
                     advancedSettings
                         .padding(.top, 10)
-                } label: {
-                    Text(t("詳細設定", "Advanced settings"))
-                        .font(.subheadline.weight(.semibold))
                 }
 
                 if let validationMessage = options.validationMessage(isJapanese: isJapanese) {
@@ -422,7 +467,7 @@ struct ContentView: View {
                         } else if options.saveSizeMode == .resolution {
                             Picker("", selection: $options.saveResolution) {
                                 ForEach(SaveResolutionPreset.allCases) { preset in
-                                    Text(preset == .custom ? t("カスタム", "Custom") : "\(preset.rawValue) dpi").tag(preset)
+                                    Text(preset == .custom ? t("カスタム", "Custom") : "\(preset.rawValue) ppi").tag(preset)
                                 }
                             }
                             .labelsHidden()
@@ -430,7 +475,7 @@ struct ContentView: View {
                             if options.saveResolution == .custom {
                                 TextField("200", value: $options.customSaveDPI, format: .number)
                                     .frame(width: 58)
-                                Text("dpi").foregroundStyle(.secondary)
+                                Text("ppi").foregroundStyle(.secondary)
                             }
                         }
 
@@ -550,11 +595,11 @@ struct ContentView: View {
                 }
                 if inspection.pdfCount > 0 && options.saveSizeMode != .resolution {
                     GridRow {
-                        settingLabel(t("PDF読込解像度", "PDF import DPI"))
+                        settingLabel(t("PDF読込解像度", "PDF import PPI"))
                         HStack {
                             Picker("", selection: $options.pdfResolution) {
                                 ForEach(PDFResolutionPreset.allCases) { preset in
-                                    Text(preset == .custom ? t("カスタム", "Custom") : "\(preset.rawValue) dpi").tag(preset)
+                                    Text(preset == .custom ? t("カスタム", "Custom") : "\(preset.rawValue) ppi").tag(preset)
                                 }
                             }
                             .labelsHidden()
@@ -562,7 +607,7 @@ struct ContentView: View {
                             if options.pdfResolution == .custom {
                                 TextField("200", value: $options.customPDFDPI, format: .number)
                                     .frame(width: 72)
-                                Text("dpi").foregroundStyle(.secondary)
+                                Text("ppi").foregroundStyle(.secondary)
                             }
                         }
                     }
@@ -780,7 +825,7 @@ struct ContentView: View {
             "Filename: \(filenamePreview)"
         ))
         if inspection.pdfCount > 0 {
-            lines.append(t("PDF読込解像度：\(options.effectivePDFDPI)dpi", "PDF import: \(options.effectivePDFDPI) dpi"))
+            lines.append(t("PDF読込解像度：\(options.effectivePDFDPI)ppi", "PDF import: \(options.effectivePDFDPI) ppi"))
         }
         return lines
     }
@@ -803,7 +848,7 @@ struct ContentView: View {
     private var warningDetailLines: [String] {
         var lines: [String] = []
         if inspection.pdfCount > 0 {
-            lines.append(t("PDFは\(options.effectivePDFDPI)dpiで画像化します", "PDFs are rasterized at \(options.effectivePDFDPI) dpi"))
+            lines.append(t("PDFは\(options.effectivePDFDPI)ppiで画像化します", "PDFs are rasterized at \(options.effectivePDFDPI) ppi"))
         }
         if inspection.upscaleImageCount > 0 {
             lines.append(t(
@@ -867,7 +912,7 @@ struct ContentView: View {
         switch options.saveSizeMode {
         case nil: t("変更なし", "Unchanged")
         case .percent?: "\(options.percentage)%"
-        case .resolution?: "\(options.saveDPI)dpi"
+        case .resolution?: "\(options.saveDPI)ppi"
         case .longEdge?: t("長辺\(options.edgePixels)px", "Long edge \(options.edgePixels)px")
         case .shortEdge?: t("短辺\(options.edgePixels)px", "Short edge \(options.edgePixels)px")
         case .maxLongEdge?: t("長辺\(options.edgePixels)px以内", "Long edge up to \(options.edgePixels)px")
@@ -916,17 +961,18 @@ struct ContentView: View {
     }
 
     private var exportArea: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .trailing, spacing: 8) {
             if !progressText.isEmpty {
                 Text(progressText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
             Button(isConverting ? t("変換中…", "Converting…") : t("画像を書き出す", "Export images"), action: export)
                 .buttonStyle(.borderedProminent)
-                .tint(accentGreen)
                 .controlSize(.large)
-                .frame(maxWidth: .infinity)
+                .frame(minWidth: 156 * uiFontSize.scale, minHeight: 38 * uiFontSize.scale)
                 .disabled(
                     droppedURLs.isEmpty
                         || (destinationMode == .selectedFolder && destinationURL == nil)
@@ -934,10 +980,9 @@ struct ContentView: View {
                         || !selectedOptionsAreImplemented
                 )
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    private var accentGreen: Color { Color(red: 0.16, green: 0.52, blue: 0.30) }
     private var borderColor: Color { Color(nsColor: .separatorColor) }
 
     private func t(_ japanese: String, _ english: String) -> String {
@@ -975,7 +1020,7 @@ struct ContentView: View {
             return
         }
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 330),
+            contentRect: NSRect(x: 0, y: 0, width: 360 * uiFontSize.scale, height: 330 * uiFontSize.scale),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -994,7 +1039,9 @@ struct ContentView: View {
             alertMessage: $alertMessage,
             isJapanese: isJapanese,
             onDone: { [weak window] in window?.orderOut(nil) }
-        ))
+        )
+        .environment(\.dynamicTypeSize, uiFontSize.dynamicTypeSize)
+        .environment(\.controlSize, uiFontSize.controlSize))
         let controller = NSWindowController(window: window)
         presetWindowController = controller
         controller.showWindow(nil)
@@ -1012,6 +1059,16 @@ struct ContentView: View {
         }
     }
 
+    private var dropInspectionSummary: String {
+        let formats = inspection.formatCounts.keys.sorted().map {
+            "\($0) \(inspection.formatCounts[$0] ?? 0)"
+        }.joined(separator: " · ")
+        return t(
+            "画像合計 \(inspection.outputImageCount)枚 · 入力 \(inspection.fileCount)件\(formats.isEmpty ? "" : " · \(formats)")",
+            "\(inspection.outputImageCount) images · \(inspection.fileCount) inputs\(formats.isEmpty ? "" : " · \(formats)")"
+        )
+    }
+
     private func chooseDestination() {
         let panel = NSOpenPanel()
         panel.title = t("画像の保存先を選択", "Choose an output folder")
@@ -1025,6 +1082,7 @@ struct ContentView: View {
     private func export() {
         guard !droppedURLs.isEmpty else { return }
         let roots = droppedURLs
+        guard let sourceFolderAccessURLs = requestSourceFolderWriteAccessIfNeeded(for: roots) else { return }
         let conversionLanguageIsJapanese = isJapanese
         isConverting = true
         conversionProgress = 0
@@ -1035,7 +1093,7 @@ struct ContentView: View {
 
         Task {
             let selectedDestination = destinationURL
-            let securityScopedURLs = roots + (selectedDestination.map { [$0] } ?? [])
+            let securityScopedURLs = roots + sourceFolderAccessURLs + (selectedDestination.map { [$0] } ?? [])
             let accessedURLs = securityScopedURLs.filter { $0.startAccessingSecurityScopedResource() }
             defer { accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() } }
 
@@ -1086,6 +1144,37 @@ struct ContentView: View {
                 alertMessage = error.localizedDescription
             }
         }
+    }
+
+    private func requestSourceFolderWriteAccessIfNeeded(for roots: [URL]) -> [URL]? {
+        guard destinationMode == .sameLocation else { return [] }
+        let parents = Dictionary(grouping: roots.filter { !isDirectory($0) }) {
+            $0.deletingLastPathComponent().standardizedFileURL
+        }.keys.sorted { $0.path < $1.path }
+        var granted: [URL] = []
+        for parent in parents {
+            let panel = NSOpenPanel()
+            panel.title = t("保存先へのアクセス", "Output Folder Access")
+            panel.message = t(
+                "「\(parent.lastPathComponent)」へ画像を作成するため、このフォルダを選択してください。",
+                "Select “\(parent.lastPathComponent)” to allow Sprout to create output files there."
+            )
+            panel.prompt = t("アクセスを許可", "Allow Access")
+            panel.directoryURL = parent
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.allowsMultipleSelection = false
+            guard panel.runModal() == .OK, let selected = panel.url else { return nil }
+            guard selected.standardizedFileURL == parent else {
+                alertMessage = t(
+                    "入力ファイルと同じフォルダを選択してください。",
+                    "Select the folder containing the input file."
+                )
+                return nil
+            }
+            granted.append(selected)
+        }
+        return granted
     }
 
     private var containsFolder: Bool { droppedURLs.contains(where: isDirectory) }
@@ -1197,13 +1286,14 @@ private struct DashedSeparator: View {
     }
 }
 
-private struct PreferencesView: View {
+struct PreferencesView: View {
     @Binding var appTheme: String
     @Binding var appLanguage: String
     @Binding var appFontSize: String
     @Environment(\.dismiss) private var dismiss
 
     private var isJapanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
+    private var uiFontSize: AppFontSize { AppFontSize(rawValue: appFontSize) ?? .medium }
     private func t(_ japanese: String, _ english: String) -> String { isJapanese ? japanese : english }
 
     var body: some View {
@@ -1235,8 +1325,8 @@ private struct PreferencesView: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(24)
-        .frame(width: 360, height: 280)
+        .padding(24 * uiFontSize.scale)
+        .frame(width: 360 * uiFontSize.scale, height: 280 * uiFontSize.scale)
     }
 }
 
@@ -1253,13 +1343,13 @@ struct HelpView: View {
                     : "Drop PNG, JPG, PDF, PSD, TIFF, GIF, WebP, or folders containing them. Choose the destination and output settings, then click Export images. Progress and a selectable log appear at bottom right.")
                 helpSection("PDF", japanese
                     ? "PDFは指定した読込解像度でページごとに画像化され、その後に保存サイズ設定が適用されます。PDF内のベクター、文字、透明、RGB・CMYK・特色は最終的に1枚のピクセル画像へ統合されます。元の編集構造は保持されません。"
-                    : "Each PDF page is rasterized at the selected import DPI, then resized. Vector objects, text, transparency and color spaces are flattened into one pixel image; editable structure is not preserved.")
+                    : "Each PDF page is rasterized at the selected import PPI, then resized. Vector objects, text, transparency and color spaces are flattened into one pixel image; editable structure is not preserved.")
                 helpSection("PSD / TIFF / GIF", japanese
                     ? "PSDはPhotoshop保存時に生成される統合画像（Composite Image）を使用します。レイヤー、マスク、スマートオブジェクト、調整レイヤー、効果は保持・再構築しません。統合画像が保存されていないPSDは読み込めない場合があります。TIFFもレイヤーを保持しません。TIFF規格は複数画像を格納できるため、そのような特殊なTIFFを読み込んだ場合は各画像を書き出します。一般的な写真TIFFは通常1画像です。アニメーションGIFは先頭フレームのみ使用します。"
                     : "PSD uses the Composite Image generated when Photoshop saves the file. Layers, masks, smart objects, adjustments and effects are not reconstructed. PSD files saved without a composite may fail. TIFF layers are not preserved. The TIFF format can technically contain multiple images; Sprout exports each one when encountered, though ordinary photo TIFF files usually contain one. Animated GIF uses only its first frame.")
                 helpSection(japanese ? "保存サイズとリサイズ" : "Sizing and resizing", japanese
-                    ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（DPI）を選ぶと、通常画像も「指定DPI ÷ 元画像DPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にDPI情報がない場合は72dpiとして計算します。たとえば元が72dpiの画像を300dpiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
-                    : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. DPI mode also resizes ordinary images by target DPI divided by source DPI, preserving physical print size. Images without DPI metadata are treated as 72 dpi. For example, 72 to 300 dpi enlarges each dimension by about 4.17× and may reduce quality. Sprout uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
+                    ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（PPI）を選ぶと、通常画像も「指定PPI ÷ 元画像PPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にPPI情報がない場合は72ppiとして計算します。たとえば元が72ppiの画像を300ppiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
+                    : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. PPI mode also resizes ordinary images by target PPI divided by source PPI, preserving physical print size. Images without PPI metadata are treated as 72 ppi. For example, 72 to 300 ppi enlarges each dimension by about 4.17× and may reduce quality. Sprout uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
                 helpSection(japanese ? "カラー・形式" : "Color and formats", japanese
                     ? "カラー変換後、ICCを埋め込む設定を選べます。プロファイルを埋め込まない場合、他アプリで色の見え方が変わる可能性があります。JPEGは透過を保持できません。PNG圧縮率は画質ではなく処理時間と容量に影響します。WebP品質は非可逆圧縮品質です。16 bitは対応する入力・出力形式でのみ有効です。"
                     : "You can embed the ICC profile after color conversion. Without it, other apps may display color differently. JPEG cannot preserve transparency. PNG compression affects speed and size, not quality. WebP quality controls lossy compression. 16-bit is used only where supported.")

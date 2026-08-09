@@ -197,13 +197,13 @@ struct ExportOptions: Codable {
     func validationMessage(isJapanese: Bool) -> String? {
         if saveSizeMode == .resolution && (saveDPI < 1 || saveDPI > 2400) {
             return isJapanese
-                ? "保存解像度は1〜2400dpiで指定してください。"
-                : "Save resolution must be between 1 and 2400 dpi."
+                ? "保存解像度は1〜2400ppiで指定してください。"
+                : "Save resolution must be between 1 and 2400 ppi."
         }
         if pdfResolution == .custom && (customPDFDPI < 1 || customPDFDPI > 2400) {
             return isJapanese
-                ? "PDFのCustom DPIは1〜2400で指定してください。"
-                : "Custom PDF DPI must be between 1 and 2400."
+                ? "PDFのカスタムPPIは1〜2400で指定してください。"
+                : "Custom PDF PPI must be between 1 and 2400."
         }
         if saveSizeMode == .percent && (percentage < 1 || percentage > 1000) {
             return isJapanese ? "倍率は1〜1000%で指定してください。" : "Scale must be between 1% and 1000%."
