@@ -174,7 +174,7 @@ struct ExportOptions: Codable {
     var pngCompression = 6
     var webPQuality = 92
     var tiffCompression: TIFFCompression? = TIFFCompression.none
-    var colorProfile: ColorProfile = .sRGB
+    var colorProfile: ColorProfile = .matchSource
     var embedsColorProfile = true
     var bitDepth: BitDepth = .matchSource
     var addsTextToFilename = false

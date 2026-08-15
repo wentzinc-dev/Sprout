@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct AppLayout {
-    let dynamicTypeSize = DynamicTypeSize.large
+    let dynamicTypeSize = DynamicTypeSize.medium
     let scale: CGFloat = 1
     let compactWidth: CGFloat = 420
-    let compactHeight: CGFloat = 500
+    let compactHeight: CGFloat = 580
     let sidebarWidth: CGFloat = 270
     let expandedHeight: CGFloat = 820
     let sidebarHeight: CGFloat = 580
@@ -13,7 +13,7 @@ struct AppLayout {
 
 @main
 struct SproutApp: App {
-    @AppStorage("appTheme") private var appTheme = AppTheme.system.rawValue
+    @AppStorage("appTheme") private var appTheme = AppTheme.dark.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
     @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
@@ -33,7 +33,7 @@ struct SproutApp: App {
                 .environment(\.controlSize, layout.controlSize)
                 .background(WindowConfigurator(size: NSSize(width: contentWidth, height: contentHeight)))
         }
-        .defaultSize(width: 420, height: 500)
+        .defaultSize(width: 420, height: 580)
 
         Settings {
             SproutSettingsView()
@@ -48,7 +48,7 @@ struct SproutApp: App {
 }
 
 private struct SproutSettingsView: View {
-    @AppStorage("appTheme") private var appTheme = AppTheme.system.rawValue
+    @AppStorage("appTheme") private var appTheme = AppTheme.dark.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
 
     var body: some View {

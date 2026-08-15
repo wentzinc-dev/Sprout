@@ -2,6 +2,162 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum SproutPalette {
+    static let accent = Color(red: 0.26, green: 0.56, blue: 0.79)
+
+    static func windowBackground(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.114, green: 0.122, blue: 0.133)
+            : Color(red: 0.941, green: 0.949, blue: 0.957)
+    }
+
+    static func sidebarBackground(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.125, green: 0.133, blue: 0.149)
+            : Color(red: 0.914, green: 0.925, blue: 0.937)
+    }
+
+    static func panelBackground(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.141, green: 0.149, blue: 0.165)
+            : Color(red: 0.976, green: 0.980, blue: 0.984)
+    }
+
+    static func panelHeader(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.173, green: 0.180, blue: 0.200)
+            : Color(red: 0.925, green: 0.937, blue: 0.949)
+    }
+
+    static func controlBackground(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.204, green: 0.216, blue: 0.235)
+            : .white
+    }
+
+    static func insetBackground(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.090, green: 0.098, blue: 0.110)
+            : Color(red: 0.965, green: 0.969, blue: 0.976)
+    }
+
+    static func border(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.067, green: 0.075, blue: 0.086)
+            : Color(red: 0.733, green: 0.757, blue: 0.784)
+    }
+}
+
+private struct SproutPanelGroupBoxStyle: GroupBoxStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            configuration.label
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 11)
+                .frame(height: 32)
+                .background(SproutPalette.panelHeader(colorScheme))
+
+            Rectangle()
+                .fill(SproutPalette.border(colorScheme))
+                .frame(height: 1)
+
+            configuration.content
+                .padding(11)
+        }
+        .background(SproutPalette.panelBackground(colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+        }
+        .shadow(color: colorScheme == .dark ? .black.opacity(0.18) : .black.opacity(0.06), radius: 2, y: 1)
+    }
+}
+
+private struct SproutFormatButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(isSelected ? Color.white : Color.secondary)
+            .padding(.horizontal, 9)
+            .frame(minWidth: 44, minHeight: 27)
+            .background {
+                if isSelected {
+                    LinearGradient(
+                        colors: [SproutPalette.accent.opacity(0.98), SproutPalette.accent.opacity(0.78)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                } else {
+                    SproutPalette.controlBackground(colorScheme)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(
+                        isSelected ? SproutPalette.accent.opacity(0.92) : SproutPalette.border(colorScheme),
+                        lineWidth: 1
+                    )
+            }
+            .shadow(color: isSelected ? SproutPalette.accent.opacity(0.18) : .clear, radius: 3, y: 1)
+            .opacity(configuration.isPressed ? 0.78 : 1)
+    }
+}
+
+private struct SproutPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(isEnabled ? Color.white : Color.secondary)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 36)
+            .background {
+                LinearGradient(
+                    colors: isEnabled
+                        ? [SproutPalette.accent.opacity(0.98), SproutPalette.accent.opacity(0.76)]
+                        : [Color.gray.opacity(0.30), Color.gray.opacity(0.20)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(isEnabled ? SproutPalette.accent.opacity(0.92) : Color.gray.opacity(0.24), lineWidth: 1)
+            }
+            .shadow(color: isEnabled ? SproutPalette.accent.opacity(0.20) : .clear, radius: 5, y: 2)
+            .opacity(configuration.isPressed ? 0.80 : 1)
+    }
+}
+
+private struct SproutSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 29)
+            .background(SproutPalette.controlBackground(colorScheme))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+            }
+            .opacity(configuration.isPressed ? 0.72 : 1)
+    }
+}
+
 enum AppTheme: String, CaseIterable, Identifiable {
     case system
     case light
@@ -50,6 +206,7 @@ private struct PresetWindowView: View {
     @Binding var alertMessage: String?
     let isJapanese: Bool
     let onDone: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     private var savedPresets: [SproutPreset] {
         guard let data = savedPresetsData.data(using: .utf8) else { return [] }
@@ -102,6 +259,8 @@ private struct PresetWindowView: View {
             }
         }
         .padding(20)
+        .tint(SproutPalette.accent)
+        .background(SproutPalette.windowBackground(colorScheme))
     }
 
     private func saveCurrentPreset() {
@@ -183,7 +342,7 @@ private struct PresetWindowView: View {
 }
 
 struct ContentView: View {
-    @AppStorage("appTheme") private var appTheme = AppTheme.system.rawValue
+    @AppStorage("appTheme") private var appTheme = AppTheme.dark.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
     @AppStorage("savedPresets") private var savedPresetsData = ""
@@ -207,6 +366,7 @@ struct ContentView: View {
     @State private var completedFileCount = 0
     @State private var totalFileCount = 0
     @State private var logText = ""
+    @Environment(\.colorScheme) private var colorScheme
 
     private var language: AppLanguage { AppLanguage(rawValue: appLanguage) ?? .japanese }
     private var isJapanese: Bool { language == .japanese }
@@ -232,20 +392,24 @@ struct ContentView: View {
                         }
                         dropArea
                             .frame(width: 280 * uiFontSize.scale)
-                        destination
+                            .frame(maxWidth: .infinity, alignment: .center)
                         settings
+                        destination
+                        advancedSettingsDisclosure
                     }
                     .padding(16 * uiFontSize.scale)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 exportArea
                     .padding(.horizontal, 16 * uiFontSize.scale)
-                    .padding(.bottom, 16 * uiFontSize.scale)
+                    .padding(.vertical, 16 * uiFontSize.scale)
             }
             .frame(width: uiFontSize.compactWidth)
+            .background(SproutPalette.windowBackground(colorScheme))
 
             if showsInspectorSidebar {
                 Divider()
+                    .overlay(SproutPalette.border(colorScheme))
                 ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
@@ -260,7 +424,7 @@ struct ContentView: View {
                         .help(t("サイドバーを閉じる", "Hide inspector sidebar"))
                     }
                     Button(t("プリセット", "Presets"), action: openPresetWindow)
-                        .controlSize(.large)
+                        .buttonStyle(SproutSecondaryButtonStyle())
                         .frame(maxWidth: .infinity)
                     executionDetails
                     Spacer(minLength: 0)
@@ -270,6 +434,7 @@ struct ContentView: View {
                 .padding(18 * uiFontSize.scale)
                 }
                 .frame(width: uiFontSize.sidebarWidth)
+                .background(SproutPalette.sidebarBackground(colorScheme))
                 .transition(.move(edge: .trailing))
             }
         }
@@ -280,7 +445,8 @@ struct ContentView: View {
                 showsAdvancedSettings ? uiFontSize.expandedHeight : 0
             )
         )
-        .background(Color(nsColor: .windowBackgroundColor))
+        .tint(SproutPalette.accent)
+        .background(SproutPalette.windowBackground(colorScheme))
         .alert("Sprout", isPresented: Binding(
             get: { alertMessage != nil },
             set: { if !$0 { alertMessage = nil } }
@@ -307,6 +473,7 @@ struct ContentView: View {
             }
             ProgressView(value: conversionProgress, total: 1)
                 .progressViewStyle(.linear)
+                .tint(SproutPalette.accent)
         }
         .padding(.top, 8)
         .accessibilityLabel(t("書き出し進捗", "Export progress"))
@@ -323,9 +490,9 @@ struct ContentView: View {
                 .padding(8)
         }
         .frame(height: 90)
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(SproutPalette.insetBackground(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay { RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)) }
+        .overlay { RoundedRectangle(cornerRadius: 6).stroke(SproutPalette.border(colorScheme)) }
     }
 
     private var dropArea: some View {
@@ -336,7 +503,7 @@ struct ContentView: View {
                 VStack(spacing: 8) {
                     Image(systemName: droppedURLs.isEmpty ? "arrow.down.doc" : "doc.on.doc.fill")
                         .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(isTargeted ? Color.accentColor : .secondary)
+                        .foregroundStyle(isTargeted ? SproutPalette.accent : SproutPalette.accent.opacity(0.88))
                     Text(droppedFileLabel)
                         .font(.headline)
                         .lineLimit(2)
@@ -384,11 +551,14 @@ struct ContentView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 80)
-        .background(isTargeted ? Color.accentColor.opacity(0.10) : Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(isTargeted ? SproutPalette.accent.opacity(0.12) : SproutPalette.panelBackground(colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isTargeted ? Color.accentColor : borderColor, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(
+                    isTargeted ? SproutPalette.accent : SproutPalette.border(colorScheme),
+                    style: StrokeStyle(lineWidth: 1, dash: [5, 4], dashPhase: 0)
+                )
         }
         .dropDestination(for: URL.self) { urls, _ in
             let supported = urls.filter { isSupportedFile($0) || isDirectory($0) }
@@ -413,32 +583,6 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 14) {
                 normalSettings
 
-                Divider()
-
-                Button {
-                    var transaction = Transaction(animation: nil)
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        showsAdvancedSettings.toggle()
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: showsAdvancedSettings ? "chevron.down" : "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .frame(width: 12)
-                        Text(t("詳細設定", "Advanced settings"))
-                            .font(.subheadline.weight(.semibold))
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if showsAdvancedSettings {
-                    advancedSettings
-                        .padding(.top, 10)
-                }
-
                 if let validationMessage = options.validationMessage(isJapanese: isJapanese) {
                     Label(validationMessage, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -448,6 +592,41 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
         }
+        .groupBoxStyle(SproutPanelGroupBoxStyle())
+    }
+
+    private var advancedSettingsDisclosure: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    showsAdvancedSettings.toggle()
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: showsAdvancedSettings ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .frame(width: 10)
+                    Text(t("詳細設定", "Advanced settings"))
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if showsAdvancedSettings {
+                advancedSettings
+                    .padding(12)
+                    .background(SproutPalette.panelBackground(colorScheme))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var normalSettings: some View {
@@ -503,14 +682,13 @@ struct ContentView: View {
                                 Button(format.displayName) {
                                     options.setSelected(format, to: false)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .tint(Color.accentColor)
+                                .buttonStyle(SproutFormatButtonStyle(isSelected: true))
                                 .accessibilityValue(t("選択中", "Selected"))
                             } else {
                                 Button(format.displayName) {
                                     options.setSelected(format, to: true)
                                 }
-                                .buttonStyle(.bordered)
+                                .buttonStyle(SproutFormatButtonStyle(isSelected: false))
                                 .accessibilityValue(t("未選択", "Not selected"))
                             }
                         }
@@ -556,7 +734,7 @@ struct ContentView: View {
                     }
                 }
                 GridRow {
-                    settingLabel(t("カラー", "Color"))
+                    settingLabel(t("カラープロファイル", "Color profile"))
                     Picker("", selection: $options.colorProfile) {
                         ForEach(ColorProfile.allCases) { profile in
                             Text(colorProfileName(profile)).tag(profile)
@@ -750,7 +928,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 }
                 .padding(7)
-                .background(Color(nsColor: .controlBackgroundColor))
+                .background(SproutPalette.controlBackground(colorScheme))
                 .clipShape(RoundedRectangle(cornerRadius: 7))
             }
 
@@ -804,6 +982,12 @@ struct ContentView: View {
                     .font(.subheadline.weight(.semibold))
             }
         }
+        .background(SproutPalette.panelBackground(colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+        }
     }
 
     private func detailSection(_ title: String, lines: [String], warning: Bool = false) -> some View {
@@ -840,7 +1024,10 @@ struct ContentView: View {
         )]
         lines.append(t("保存サイズ：\(saveSizeDescription)", "Save size: \(saveSizeDescription)"))
         lines.append(t("リサイズ方式：\(resizeMethodName(options.resizeMethod))", "Resize method: \(resizeMethodName(options.resizeMethod))"))
-        lines.append(t("カラー：\(colorProfileName(options.colorProfile))", "Color: \(colorProfileName(options.colorProfile))"))
+        lines.append(t(
+            "カラープロファイル：\(colorProfileName(options.colorProfile))",
+            "Color profile: \(colorProfileName(options.colorProfile))"
+        ))
         lines.append(t("保存先：\(destinationDescription)", "Destination: \(destinationDescription)"))
         lines.append(t(
             "メタデータ：\(options.metadataMode == .keep ? "保持" : "破棄")",
@@ -991,10 +1178,11 @@ struct ContentView: View {
             }
             .padding(.top, 4)
         }
+        .groupBoxStyle(SproutPanelGroupBoxStyle())
     }
 
     private var exportArea: some View {
-        VStack(alignment: .trailing, spacing: 8) {
+        VStack(alignment: .center, spacing: 8) {
             if !progressText.isEmpty {
                 Text(progressText)
                     .font(.caption)
@@ -1003,8 +1191,7 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
             }
             Button(isConverting ? t("変換中…", "Converting…") : t("画像を書き出す", "Export images"), action: export)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(SproutPrimaryButtonStyle())
                 .frame(minWidth: 156 * uiFontSize.scale, minHeight: 38 * uiFontSize.scale)
                 .disabled(
                     droppedURLs.isEmpty
@@ -1013,10 +1200,10 @@ struct ContentView: View {
                         || !selectedOptionsAreImplemented
                 )
         }
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private var borderColor: Color { Color(nsColor: .separatorColor) }
+    private var borderColor: Color { SproutPalette.border(colorScheme) }
 
     private func t(_ japanese: String, _ english: String) -> String {
         isJapanese ? japanese : english
@@ -1344,6 +1531,7 @@ struct PreferencesView: View {
     @Binding var appTheme: String
     @Binding var appLanguage: String
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     private var isJapanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
     private func t(_ japanese: String, _ english: String) -> String { isJapanese ? japanese : english }
@@ -1373,11 +1561,14 @@ struct PreferencesView: View {
         }
         .padding(24)
         .frame(width: 360, height: 220)
+        .tint(SproutPalette.accent)
+        .background(SproutPalette.windowBackground(colorScheme))
     }
 }
 
 struct HelpView: View {
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
+    @Environment(\.colorScheme) private var colorScheme
     private var japanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
 
     var body: some View {
@@ -1396,7 +1587,7 @@ struct HelpView: View {
                 helpSection(japanese ? "保存サイズとリサイズ" : "Sizing and resizing", japanese
                     ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（PPI）を選ぶと、通常画像も「指定PPI ÷ 元画像PPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にPPI情報がない場合は72ppiとして計算します。たとえば元が72ppiの画像を300ppiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
                     : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. PPI mode also resizes ordinary images by target PPI divided by source PPI, preserving physical print size. Images without PPI metadata are treated as 72 ppi. For example, 72 to 300 ppi enlarges each dimension by about 4.17× and may reduce quality. Sprout uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
-                helpSection(japanese ? "カラー・形式" : "Color and formats", japanese
+                helpSection(japanese ? "カラープロファイル・形式" : "Color profiles and formats", japanese
                     ? "カラー変換後、ICCを埋め込む設定を選べます。プロファイルを埋め込まない場合、他アプリで色の見え方が変わる可能性があります。JPEGは透過を保持できません。PNG圧縮率は画質ではなく処理時間と容量に影響します。WebP品質は非可逆圧縮品質です。16 bitは対応する入力・出力形式でのみ有効です。"
                     : "You can embed the ICC profile after color conversion. Without it, other apps may display color differently. JPEG cannot preserve transparency. PNG compression affects speed and size, not quality. WebP quality controls lossy compression. 16-bit is used only where supported.")
                 helpSection(japanese ? "ファイル名・保存先・プリセット" : "Names, destinations and presets", japanese
@@ -1409,6 +1600,8 @@ struct HelpView: View {
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .tint(SproutPalette.accent)
+        .background(SproutPalette.windowBackground(colorScheme))
     }
 
     private func helpSection(_ title: String, _ body: String) -> some View {
