@@ -20,14 +20,15 @@ Sproutは、既存macOSアプリ「PDFUNK」をベースにした多形式画像
 - Repository: <https://github.com/wentzinc-dev/PDFUNK>
 - 作業ブランチ: `codex/sprout-initial`
 - ブランチ基点: `origin/agent/developer-id-distribution`
-- Xcode Project: `PDFUNK.xcodeproj`
-- Scheme / Target内部名: `PDFUNK`
+- Xcode Project: `Sprout.xcodeproj`
+- Scheme: `Sprout`
+- Target内部名: `PDFUNK`
 - Product Name / アプリ表示名: `Sprout`
 - 生成物: `Sprout.app`
 - 暫定Bundle Identifier: `com.wentz.sprout`
 - Developer Team: `UYQNZULLNC`
 
-プロジェクト、Scheme、ソースディレクトリの内部名は既存参照を壊さないためPDFUNKのままです。
+プロジェクトとSchemeはSproutへ改名済みです。ターゲットとソースディレクトリの内部名は既存参照を壊さないためPDFUNKのままです。
 
 現在の変更は未コミットです。
 
@@ -52,6 +53,7 @@ PSDはレイヤーを解析せず、保存済みの統合画像を読み込み�
 - WebP
 
 出力形式からPSDは廃止済みです。旧`PSDWriter.swift`もターゲットから削除しています。
+JPG / PNG / TIFF / WebPは複数同時に選択でき、1回の実行で選択した全形式を書き出します。
 
 ## 5. 出力規則
 
@@ -115,7 +117,7 @@ PDFは指定DPIでラスタライズした後、ほかの画像と同じ保存�
 通常表示:
 
 - 保存サイズ
-- 形式
+- 形式（JPG / PNG / TIFF / WebPの複数選択）
 - JPEG品質（JPGのみ）
 - WebP品質（WebPのみ）
 - カラー
@@ -151,6 +153,7 @@ WebP品質はWebP選択時に1〜100で設定します。
 
 - JPG: JPEG品質 1〜100（初期値92）
 - PNG: PNG圧縮率 0〜9（初期値6。画質には影響しない）
+- TIFF: 圧縮（なし / LZW / ZIP。初期値なし）
 - WebP: WebP品質 1〜100（初期値92。Losslessは未実装）
 - PNG / TIFF: ビット深度（元のまま / 8 bit / 16 bit）
 
@@ -174,7 +177,7 @@ WebP品質はWebP選択時に1〜100で設定します。
 
 以下を実装済みです。
 
-- 設定一式のプリセット保存・適用・削除
+- 複数の出力形式を含む設定一式のプリセット保存・適用・削除（旧単一形式プリセットも読込可能）
 - `.sproutpreset`（JSON）の書き出し
 - 保存先種別を保存し、保存先URL自体は保存しない
 - 現在の設定を初期値へ戻す
@@ -245,7 +248,7 @@ macOSのImageIOはWebP入力を読めますが、この環境ではWebP出力を
 - `SDWebImage 5.21.7`
 - `libwebp 1.6.0`
 
-解決バージョンは`PDFUNK.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`に保存しています。
+解決バージョンは`Sprout.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`に保存しています。
 
 WebP変換はローカルライブラリ内で完結し、ネットワーク権限は追加していません。
 

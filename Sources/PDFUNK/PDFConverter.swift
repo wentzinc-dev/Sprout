@@ -535,7 +535,9 @@ struct FileConverter {
                 kCGImagePropertyPNGCompressionFilter: pngFilterValue(for: options.pngCompression)
             ]
         } else if format == .tiff {
-            properties[kCGImagePropertyTIFFDictionary] = [kCGImagePropertyTIFFCompression: 5]
+            properties[kCGImagePropertyTIFFDictionary] = [
+                kCGImagePropertyTIFFCompression: (options.tiffCompression ?? .lzw).imageIOValue
+            ]
         }
         CGImageDestinationAddImage(destination, outputImage, properties as CFDictionary)
         guard CGImageDestinationFinalize(destination) else {

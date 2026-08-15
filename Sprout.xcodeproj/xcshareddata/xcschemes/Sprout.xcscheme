@@ -17,7 +17,7 @@
                BlueprintIdentifier = "A10000000000000000000040"
                BuildableName = "Sprout.app"
                BlueprintName = "PDFUNK"
-               ReferencedContainer = "container:PDFUNK.xcodeproj">
+               ReferencedContainer = "container:Sprout.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -47,7 +47,7 @@
             BlueprintIdentifier = "A10000000000000000000040"
             BuildableName = "Sprout.app"
             BlueprintName = "PDFUNK"
-            ReferencedContainer = "container:PDFUNK.xcodeproj">
+            ReferencedContainer = "container:Sprout.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>

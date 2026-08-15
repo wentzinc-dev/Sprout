@@ -14,6 +14,8 @@
 - GIF
 - WebP
 
+出力形式は複数同時に選択でき、1回の書き出しで選択した全形式を生成します。PSDは入力時に統合画像を読み込めますが、PSD形式での出力には対応していません。
+
 出力:
 
 - JPG
@@ -34,10 +36,10 @@ v2ではメインウインドウを2カラム化しています。左側にド�
 - リサイズ方式: 自動（推奨）/ バイキュービック / シャープ / スムーズ / ニアレストネイバー
 - PDFを含む場合のみPDF読込解像度を表示（72 / 150 / 200 / 300 / 350 / 600 / Custom ppi）
 - 元ファイルに合わせる / sRGB / Display P3 / Adobe RGB (1998)
-- JPG選択時はJPEG品質、PNG選択時はPNG圧縮率、WebP選択時はWebP品質を表示
+- JPG選択時はJPEG品質、PNG選択時はPNG圧縮率、TIFF選択時はTIFF圧縮、WebP選択時はWebP品質を表示
 - PNG / TIFFではビット深度（元のまま / 8 bit / 16 bit）を選択可能
 - 出力ファイル名、ICC埋め込み、メタデータ、作成日時の保持を設定可能
-- プリセットの保存・適用・削除・`.sproutpreset`書き出し、設定初期化に対応
+- 複数の出力形式を含むプリセットの保存・適用・削除・`.sproutpreset`書き出し、設定初期化に対応（旧単一形式プリセットも読込可能）
 - 出力名は元ファイル名を基準にし、文字追加・文字置換に対応
 - 書き出し前に入力件数、PDFページ数、生成枚数、設定、注意事項をリアルタイム表示
 - 保存先は「同じ場所」が初期値。直下保存または形式名フォルダへの保存を選択でき、任意のフォルダへも切り替え可能
@@ -49,10 +51,10 @@ WebP出力には`SDWebImageWebPCoder 0.15.0`と`libwebp 1.6.0`を使用します
 
 ## 開発・実行
 
-1. Xcode 16以降で`PDFUNK.xcodeproj`を開く。
-2. Scheme `PDFUNK`、実行先`My Mac`を選択する。
+1. Xcode 16以降で`Sprout.xcodeproj`を開く。
+2. Scheme `Sprout`、実行先`My Mac`を選択する。
 3. Runして対応ファイルをドロップし、保存先を明示的に選択して書き出す。
 
-Xcodeのプロジェクト／ターゲット／Scheme内部名は既存参照を維持するため当面PDFUNKのままです。生成されるアプリ名は`Sprout.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
+Xcodeのプロジェクト名とScheme名はSproutです。ソースターゲットの内部名は互換性のためPDFUNKのままです。生成されるアプリ名は`Sprout.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
 
 詳細は[`docs/HANDOFF.md`](docs/HANDOFF.md)を参照してください。

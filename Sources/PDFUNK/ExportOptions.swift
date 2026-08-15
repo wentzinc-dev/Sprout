@@ -85,6 +85,21 @@ enum BitDepth: String, CaseIterable, Identifiable, Codable {
     var id: Self { self }
 }
 
+enum TIFFCompression: String, CaseIterable, Identifiable, Codable {
+    case none
+    case lzw
+    case zip
+    var id: Self { self }
+
+    var imageIOValue: Int {
+        switch self {
+        case .none: 1
+        case .lzw: 5
+        case .zip: 8
+        }
+    }
+}
+
 enum MetadataMode: String, CaseIterable, Identifiable, Codable {
     case keep
     case discard
@@ -144,7 +159,9 @@ struct FilenameOperation: Codable, Identifiable {
 }
 
 struct ExportOptions: Codable {
+    // Retained for compatibility with presets created before multi-format export.
     var format: ExportFormat = .png
+    var formats: Set<ExportFormat>?
     var pdfResolution: PDFResolutionPreset = .dpi200
     var customPDFDPI = 200
     var saveSizeMode: SaveSizeMode? = .percent
@@ -156,6 +173,7 @@ struct ExportOptions: Codable {
     var jpegQuality = 92
     var pngCompression = 6
     var webPQuality = 92
+    var tiffCompression: TIFFCompression? = TIFFCompression.none
     var colorProfile: ColorProfile = .sRGB
     var embedsColorProfile = true
     var bitDepth: BitDepth = .matchSource
@@ -175,6 +193,38 @@ struct ExportOptions: Codable {
     var pdfDPI: Int { pdfResolution.value(customDPI: customPDFDPI) }
     var saveDPI: Int { saveResolution.value(customDPI: customSaveDPI) }
     var effectivePDFDPI: Int { saveSizeMode == .resolution ? saveDPI : pdfDPI }
+
+    var selectedFormats: [ExportFormat] {
+        let selection = formats.flatMap { $0.isEmpty ? nil : $0 } ?? [format]
+        return ExportFormat.allCases.filter(selection.contains)
+    }
+
+    func isSelected(_ format: ExportFormat) -> Bool {
+        selectedFormats.contains(format)
+    }
+
+    mutating func setSelected(_ format: ExportFormat, to isSelected: Bool) {
+        if formats == nil, isSelected, format != self.format {
+            formats = [format]
+            self.format = format
+            return
+        }
+        var selection = Set(selectedFormats)
+        if isSelected {
+            selection.insert(format)
+        } else if selection.count > 1 {
+            selection.remove(format)
+        }
+        formats = selection
+        self.format = ExportFormat.allCases.first(where: selection.contains) ?? .png
+    }
+
+    func options(for format: ExportFormat) -> ExportOptions {
+        var copy = self
+        copy.format = format
+        copy.formats = [format]
+        return copy
+    }
 
     func scaleFactor(width: Int, height: Int, sourceDPI: Int = 72) -> CGFloat {
         guard width > 0, height > 0 else { return 1 }
@@ -213,13 +263,13 @@ struct ExportOptions: Codable {
                 ? "辺のサイズは1〜100,000ピクセルで指定してください。"
                 : "Edge size must be between 1 and 100,000 pixels."
         }
-        if jpegQuality < 1 || jpegQuality > 100 {
+        if isSelected(.jpg) && (jpegQuality < 1 || jpegQuality > 100) {
             return isJapanese ? "JPEG品質は1〜100で指定してください。" : "JPEG quality must be between 1 and 100."
         }
-        if pngCompression < 0 || pngCompression > 9 {
+        if isSelected(.png) && (pngCompression < 0 || pngCompression > 9) {
             return isJapanese ? "PNG圧縮率は0〜9で指定してください。" : "PNG compression must be between 0 and 9."
         }
-        if webPQuality < 1 || webPQuality > 100 {
+        if isSelected(.webp) && (webPQuality < 1 || webPQuality > 100) {
             return isJapanese ? "WebP品質は1〜100で指定してください。" : "WebP quality must be between 1 and 100."
         }
         if effectiveFilenameOperations.contains(where: { $0.kind == .replace && $0.text.isEmpty }) {

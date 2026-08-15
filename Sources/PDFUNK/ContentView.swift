@@ -185,7 +185,6 @@ private struct PresetWindowView: View {
 struct ContentView: View {
     @AppStorage("appTheme") private var appTheme = AppTheme.system.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
-    @AppStorage("appFontSize") private var appFontSize = AppFontSize.medium.rawValue
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
     @AppStorage("savedPresets") private var savedPresetsData = ""
     @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
@@ -211,7 +210,7 @@ struct ContentView: View {
 
     private var language: AppLanguage { AppLanguage(rawValue: appLanguage) ?? .japanese }
     private var isJapanese: Bool { language == .japanese }
-    private var uiFontSize: AppFontSize { AppFontSize(rawValue: appFontSize) ?? .medium }
+    private let uiFontSize = AppLayout()
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -498,15 +497,27 @@ struct ContentView: View {
                 }
                 GridRow {
                     settingLabel(t("形式", "Format"))
-                    Picker("", selection: $options.format) {
+                    HStack(spacing: 6) {
                         ForEach(ExportFormat.allCases) { format in
-                            Text(format.displayName).tag(format)
+                            if options.isSelected(format) {
+                                Button(format.displayName) {
+                                    options.setSelected(format, to: false)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Color.accentColor)
+                                .accessibilityValue(t("選択中", "Selected"))
+                            } else {
+                                Button(format.displayName) {
+                                    options.setSelected(format, to: true)
+                                }
+                                .buttonStyle(.bordered)
+                                .accessibilityValue(t("未選択", "Not selected"))
+                            }
                         }
                     }
-                    .labelsHidden()
                     .frame(width: 230, alignment: .leading)
                 }
-                if options.format == .jpg {
+                if options.isSelected(.jpg) {
                     GridRow {
                         settingLabel(t("JPEG品質", "JPEG quality"))
                         HStack {
@@ -525,7 +536,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                if options.format == .webp {
+                if options.isSelected(.webp) {
                     GridRow {
                         settingLabel(t("WebP品質", "WebP quality"))
                         HStack {
@@ -573,8 +584,8 @@ struct ContentView: View {
                         settingLabel("")
                         Toggle(
                             t(
-                                "\(options.format.displayName)のフォルダを作成し、そこへ書き出す",
-                                "Create a \(options.format.displayName) folder and export into it"
+                                "形式ごとのフォルダを作成し、そこへ書き出す",
+                                "Create a folder for each format and export into it"
                             ),
                             isOn: Binding(
                                 get: { options.sameLocationExportMode == .formatFolder },
@@ -612,7 +623,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                if options.format == .png || options.format == .tiff {
+                if options.isSelected(.png) || options.isSelected(.tiff) {
                     GridRow {
                         settingLabel(t("ビット深度", "Bit depth"))
                         Picker("", selection: $options.bitDepth) {
@@ -624,7 +635,7 @@ struct ContentView: View {
                         .frame(width: 230, alignment: .leading)
                     }
                 }
-                if options.format == .png {
+                if options.isSelected(.png) {
                     GridRow {
                         settingLabel(t("PNG圧縮率", "PNG compression"))
                         HStack {
@@ -641,6 +652,21 @@ struct ContentView: View {
                                 .monospacedDigit()
                                 .frame(width: 32, alignment: .trailing)
                         }
+                    }
+                }
+                if options.isSelected(.tiff) {
+                    GridRow {
+                        settingLabel(t("TIFF圧縮", "TIFF compression"))
+                        Picker("", selection: Binding(
+                            get: { options.tiffCompression ?? .lzw },
+                            set: { options.tiffCompression = $0 }
+                        )) {
+                            Text(t("なし", "None")).tag(TIFFCompression.none)
+                            Text("LZW").tag(TIFFCompression.lzw)
+                            Text("ZIP").tag(TIFFCompression.zip)
+                        }
+                        .labelsHidden()
+                        .frame(width: 230, alignment: .leading)
                     }
                 }
                 GridRow {
@@ -751,12 +777,14 @@ struct ContentView: View {
     private var processedSampleFilename: String {
         let sourceURL = (try? expandedInputs(from: droppedURLs).first?.url)
             ?? URL(fileURLWithPath: "/sample/00000.jpg")
-        return OutputFilenameBuilder.filename(
-            for: sourceURL,
-            sequence: 1,
-            format: options.format,
-            options: options
-        )
+        return options.selectedFormats.map { format in
+            OutputFilenameBuilder.filename(
+                for: sourceURL,
+                sequence: 1,
+                format: format,
+                options: options
+            )
+        }.joined(separator: " / ")
     }
 
     private var executionDetails: some View {
@@ -804,9 +832,11 @@ struct ContentView: View {
     }
 
     private var exportDetailLines: [String] {
+        let formatNames = options.selectedFormats.map(\.displayName).joined(separator: " + ")
+        let outputCount = inspection.outputImageCount * options.selectedFormats.count
         var lines = [t(
-            "合計\(inspection.outputImageCount)枚の\(options.format.displayName)を書き出します",
-            "Export \(inspection.outputImageCount) \(options.format.displayName) image(s)"
+            "合計\(outputCount)枚（\(formatNames)）を書き出します",
+            "Export \(outputCount) image(s) as \(formatNames)"
         )]
         lines.append(t("保存サイズ：\(saveSizeDescription)", "Save size: \(saveSizeDescription)"))
         lines.append(t("リサイズ方式：\(resizeMethodName(options.resizeMethod))", "Resize method: \(resizeMethodName(options.resizeMethod))"))
@@ -834,13 +864,15 @@ struct ContentView: View {
         guard let inputs = try? expandedInputs(from: droppedURLs), !inputs.isEmpty else {
             return t("入力待ち", "Waiting for input")
         }
-        let names = inputs.prefix(3).enumerated().map { index, input in
-            OutputFilenameBuilder.filename(
-                for: input.url,
-                sequence: index + 1,
-                format: options.format,
-                options: options
-            )
+        let names = inputs.prefix(3).enumerated().flatMap { index, input in
+            options.selectedFormats.map { format in
+                OutputFilenameBuilder.filename(
+                    for: input.url,
+                    sequence: index + 1,
+                    format: format,
+                    options: options
+                )
+            }
         }
         return names.joined(separator: "/") + (inputs.count > 3 ? "/…" : "")
     }
@@ -865,7 +897,7 @@ struct ContentView: View {
         if inspection.gifCount > 0 {
             lines.append(t("アニメーションGIFは先頭フレームのみ使用します", "Animated GIFs use the first frame only"))
         }
-        if options.format == .jpg && inspection.mayContainTransparency {
+        if options.isSelected(.jpg) && inspection.mayContainTransparency {
             lines.append(t("JPGでは透過部分を白背景にします", "Transparent areas are flattened onto white for JPG"))
         }
         if inspection.fileCount > 0 {
@@ -881,7 +913,8 @@ struct ContentView: View {
             options.pdfResolution.rawValue, String(options.customPDFDPI),
             options.saveSizeMode?.rawValue ?? "none", options.saveResolution.rawValue, String(options.customSaveDPI),
             String(options.percentage), String(options.edgePixels), String(options.allowsUpscaling),
-            options.resizeMethod.rawValue, options.format.rawValue
+            options.resizeMethod.rawValue,
+            options.selectedFormats.map(\.rawValue).joined(separator: ",")
         ].joined(separator: "#")
     }
 
@@ -1084,6 +1117,8 @@ struct ContentView: View {
         let roots = droppedURLs
         guard let sourceFolderAccessURLs = requestSourceFolderWriteAccessIfNeeded(for: roots) else { return }
         let conversionLanguageIsJapanese = isJapanese
+        let conversionOptions = options
+        let selectedFormats = conversionOptions.selectedFormats
         isConverting = true
         conversionProgress = 0
         completedFileCount = 0
@@ -1106,37 +1141,50 @@ struct ContentView: View {
                             : "No supported files were found."
                     )
                 }
-                totalFileCount = filesToConvert.count
-                logText += t("\n対象：\(filesToConvert.count)ファイル", "\nFiles: \(filesToConvert.count)")
+                let totalJobs = filesToConvert.count * selectedFormats.count
+                totalFileCount = totalJobs
+                logText += t(
+                    "\n対象：\(filesToConvert.count)ファイル × \(selectedFormats.count)形式",
+                    "\nFiles: \(filesToConvert.count) × \(selectedFormats.count) format(s)"
+                )
                 let outputSequence = OutputSequence()
                 for (fileIndex, input) in filesToConvert.enumerated() {
-                    let outputBase = try outputBaseURL(for: input, selectedDestination: selectedDestination)
-                    try await FileConverter().convert(
-                        inputURL: input.url,
-                        destinationURL: outputBase,
-                        options: options,
-                        sequence: outputSequence,
-                        isJapanese: conversionLanguageIsJapanese
-                    ) { completed, total in
-                        let itemProgress = total > 0 ? Double(completed) / Double(total) : 0
-                        conversionProgress = min(
-                            1,
-                            (Double(fileIndex) + itemProgress) / Double(filesToConvert.count)
+                    for (formatIndex, format) in selectedFormats.enumerated() {
+                        let jobIndex = fileIndex * selectedFormats.count + formatIndex
+                        let formatOptions = conversionOptions.options(for: format)
+                        let outputBase = try outputBaseURL(
+                            for: input,
+                            format: format,
+                            selectedDestination: selectedDestination,
+                            exportOptions: conversionOptions
                         )
-                        progressText = conversionLanguageIsJapanese
-                            ? "ファイル \(fileIndex + 1)/\(filesToConvert.count)・\(completed)/\(total)"
-                            : "File \(fileIndex + 1)/\(filesToConvert.count) · \(completed)/\(total)"
-                    }
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                        completedFileCount = fileIndex + 1
+                        try await FileConverter().convert(
+                            inputURL: input.url,
+                            destinationURL: outputBase,
+                            options: formatOptions,
+                            sequence: outputSequence,
+                            isJapanese: conversionLanguageIsJapanese
+                        ) { completed, total in
+                            let itemProgress = total > 0 ? Double(completed) / Double(total) : 0
+                            conversionProgress = min(
+                                1,
+                                (Double(jobIndex) + itemProgress) / Double(totalJobs)
+                            )
+                            progressText = conversionLanguageIsJapanese
+                                ? "ファイル \(fileIndex + 1)/\(filesToConvert.count)・\(format.displayName)・\(completed)/\(total)"
+                                : "File \(fileIndex + 1)/\(filesToConvert.count) · \(format.displayName) · \(completed)/\(total)"
+                        }
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                            completedFileCount = jobIndex + 1
+                        }
                     }
                     logText += "\n[\(fileIndex + 1)/\(filesToConvert.count)] \(input.url.lastPathComponent)"
                 }
                 isConverting = false
                 conversionProgress = 1
                 alertMessage = conversionLanguageIsJapanese
-                    ? "\(filesToConvert.count)個のファイルを変換しました。"
-                    : "Converted \(filesToConvert.count) file(s)."
+                    ? "\(filesToConvert.count)個のファイルを\(selectedFormats.count)形式へ変換しました。"
+                    : "Converted \(filesToConvert.count) file(s) into \(selectedFormats.count) format(s)."
                 logText += conversionLanguageIsJapanese ? "\n完了" : "\nCompleted"
             } catch {
                 isConverting = false
@@ -1183,9 +1231,10 @@ struct ContentView: View {
         switch destinationMode {
         case .sameLocation:
             if options.sameLocationExportMode == .formatFolder {
+                let formatNames = options.selectedFormats.map(\.displayName).joined(separator: " / ")
                 return t(
-                    "入力ファイルと同じ場所の「\(options.format.displayName)」フォルダ",
-                    "A \(options.format.displayName) folder next to each source file"
+                    "入力ファイルと同じ場所の形式別フォルダ（\(formatNames)）",
+                    "Format folders next to each source file (\(formatNames))"
                 )
             }
             return t("入力ファイルと同じ場所", "Next to each source file")
@@ -1241,11 +1290,16 @@ struct ContentView: View {
         return result
     }
 
-    private func outputBaseURL(for input: ConversionInput, selectedDestination: URL?) throws -> URL {
+    private func outputBaseURL(
+        for input: ConversionInput,
+        format: ExportFormat,
+        selectedDestination: URL?,
+        exportOptions: ExportOptions
+    ) throws -> URL {
         if destinationMode == .sameLocation {
             if let rootFolder = input.rootFolder {
-                var base = options.sameLocationExportMode == .formatFolder
-                    ? rootFolder.appendingPathComponent(options.format.displayName, isDirectory: true)
+                var base = exportOptions.sameLocationExportMode == .formatFolder
+                    ? rootFolder.appendingPathComponent(format.displayName, isDirectory: true)
                     : rootFolder
                 if preservesFolderStructure && !input.relativeDirectory.isEmpty {
                     base.appendPathComponent(input.relativeDirectory, isDirectory: true)
@@ -1254,8 +1308,8 @@ struct ContentView: View {
                 return base
             }
             let sourceFolder = input.url.deletingLastPathComponent()
-            guard options.sameLocationExportMode == .formatFolder else { return sourceFolder }
-            let formatFolder = sourceFolder.appendingPathComponent(options.format.displayName, isDirectory: true)
+            guard exportOptions.sameLocationExportMode == .formatFolder else { return sourceFolder }
+            let formatFolder = sourceFolder.appendingPathComponent(format.displayName, isDirectory: true)
             try FileManager.default.createDirectory(at: formatFolder, withIntermediateDirectories: true)
             return formatFolder
         }
@@ -1289,11 +1343,9 @@ private struct DashedSeparator: View {
 struct PreferencesView: View {
     @Binding var appTheme: String
     @Binding var appLanguage: String
-    @Binding var appFontSize: String
     @Environment(\.dismiss) private var dismiss
 
     private var isJapanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
-    private var uiFontSize: AppFontSize { AppFontSize(rawValue: appFontSize) ?? .medium }
     private func t(_ japanese: String, _ english: String) -> String { isJapanese ? japanese : english }
 
     var body: some View {
@@ -1311,12 +1363,6 @@ struct PreferencesView: View {
                     Text("日本語").tag(AppLanguage.japanese.rawValue)
                     Text("English").tag(AppLanguage.english.rawValue)
                 }
-                Picker(t("フォントサイズ", "Font size"), selection: $appFontSize) {
-                    Text("S").tag(AppFontSize.small.rawValue)
-                    Text("M").tag(AppFontSize.medium.rawValue)
-                    Text("L").tag(AppFontSize.large.rawValue)
-                }
-                .pickerStyle(.segmented)
             }
 
             HStack {
@@ -1325,8 +1371,8 @@ struct PreferencesView: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(24 * uiFontSize.scale)
-        .frame(width: 360 * uiFontSize.scale, height: 280 * uiFontSize.scale)
+        .padding(24)
+        .frame(width: 360, height: 220)
     }
 }
 

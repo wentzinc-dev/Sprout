@@ -17,8 +17,8 @@ readonly notarized_zip_path="$artifacts_dir/Sprout-1.0-notarized.zip"
 mkdir -p "$artifacts_dir"
 
 xcodebuild archive \
-  -project "$project_root/PDFUNK.xcodeproj" \
-  -scheme PDFUNK \
+  -project "$project_root/Sprout.xcodeproj" \
+  -scheme Sprout \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -archivePath "$archive_path"
