@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct AppLayout {
@@ -17,15 +18,23 @@ struct SproutApp: App {
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
     @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
+    @AppStorage("requiredMainContentHeight") private var requiredMainContentHeight: Double = 0
 
     var body: some Scene {
         WindowGroup("Sprout") {
             let layout = AppLayout()
             let contentWidth = layout.compactWidth + (showsInspectorSidebar ? layout.sidebarWidth : 0)
-            let contentHeight = max(
+            let requestedHeight = max(
                 layout.compactHeight,
-                showsAdvancedSettings ? layout.expandedHeight : 0
+                showsAdvancedSettings
+                    ? max(layout.expandedHeight, CGFloat(requiredMainContentHeight))
+                    : 0
             )
+            let maximumHeight = max(
+                layout.compactHeight,
+                (NSScreen.main?.visibleFrame.height ?? requestedHeight) - 24
+            )
+            let contentHeight = min(requestedHeight, maximumHeight)
             ContentView()
                 .preferredColorScheme((AppTheme(rawValue: appTheme) ?? .system).colorScheme)
                 .environment(\.locale, Locale(identifier: (AppLanguage(rawValue: appLanguage) ?? .japanese).localeIdentifier))

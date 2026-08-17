@@ -2,8 +2,19 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private struct MainContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 private enum SproutPalette {
     static let accent = Color(red: 0.26, green: 0.56, blue: 0.79)
+    static let selectionAccent = Color(red: 0.47, green: 0.78, blue: 0.60)
+    static let selectionForeground = Color(red: 0.08, green: 0.22, blue: 0.14)
+    static let dropIcon = Color(red: 0.66, green: 0.42, blue: 0.23)
 
     static func windowBackground(_ scheme: ColorScheme) -> Color {
         scheme == .dark
@@ -84,13 +95,13 @@ private struct SproutFormatButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(isSelected ? Color.white : Color.secondary)
+            .foregroundStyle(isSelected ? SproutPalette.selectionForeground : Color.secondary)
             .padding(.horizontal, 9)
             .frame(minWidth: 44, minHeight: 27)
             .background {
                 if isSelected {
                     LinearGradient(
-                        colors: [SproutPalette.accent.opacity(0.98), SproutPalette.accent.opacity(0.78)],
+                        colors: [SproutPalette.selectionAccent.opacity(0.98), SproutPalette.selectionAccent.opacity(0.78)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -102,11 +113,11 @@ private struct SproutFormatButtonStyle: ButtonStyle {
             .overlay {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .stroke(
-                        isSelected ? SproutPalette.accent.opacity(0.92) : SproutPalette.border(colorScheme),
+                        isSelected ? SproutPalette.selectionAccent.opacity(0.92) : SproutPalette.border(colorScheme),
                         lineWidth: 1
                     )
             }
-            .shadow(color: isSelected ? SproutPalette.accent.opacity(0.18) : .clear, radius: 3, y: 1)
+            .shadow(color: isSelected ? SproutPalette.selectionAccent.opacity(0.18) : .clear, radius: 3, y: 1)
             .opacity(configuration.isPressed ? 0.78 : 1)
     }
 }
@@ -259,7 +270,7 @@ private struct PresetWindowView: View {
             }
         }
         .padding(20)
-        .tint(SproutPalette.accent)
+        .tint(SproutPalette.selectionAccent)
         .background(SproutPalette.windowBackground(colorScheme))
     }
 
@@ -347,6 +358,7 @@ struct ContentView: View {
     @AppStorage("showsAdvancedSettings") private var showsAdvancedSettings = false
     @AppStorage("savedPresets") private var savedPresetsData = ""
     @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
+    @AppStorage("requiredMainContentHeight") private var requiredMainContentHeight: Double = 0
     @State private var droppedURLs: [URL] = []
     @State private var destinationURL: URL?
     @State private var destinationMode = DestinationMode.sameLocation
@@ -399,6 +411,22 @@ struct ContentView: View {
                     }
                     .padding(16 * uiFontSize.scale)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: MainContentHeightPreferenceKey.self,
+                                value: proxy.size.height
+                            )
+                        }
+                    }
+                }
+                .scrollIndicators(.automatic)
+                .onPreferenceChange(MainContentHeightPreferenceKey.self) { measuredHeight in
+                    guard showsAdvancedSettings, measuredHeight > 0 else { return }
+                    let heightIncludingExportArea = ceil(measuredHeight + 74 * uiFontSize.scale)
+                    if abs(CGFloat(requiredMainContentHeight) - heightIncludingExportArea) > 1 {
+                        requiredMainContentHeight = Double(heightIncludingExportArea)
+                    }
                 }
                 exportArea
                     .padding(.horizontal, 16 * uiFontSize.scale)
@@ -438,14 +466,9 @@ struct ContentView: View {
                 .transition(.move(edge: .trailing))
             }
         }
-        .frame(
-            width: uiFontSize.compactWidth + (showsInspectorSidebar ? uiFontSize.sidebarWidth : 0),
-            height: max(
-                uiFontSize.compactHeight,
-                showsAdvancedSettings ? uiFontSize.expandedHeight : 0
-            )
-        )
-        .tint(SproutPalette.accent)
+        .frame(width: uiFontSize.compactWidth + (showsInspectorSidebar ? uiFontSize.sidebarWidth : 0))
+        .frame(maxHeight: .infinity)
+        .tint(SproutPalette.selectionAccent)
         .background(SproutPalette.windowBackground(colorScheme))
         .alert("Sprout", isPresented: Binding(
             get: { alertMessage != nil },
@@ -503,7 +526,7 @@ struct ContentView: View {
                 VStack(spacing: 8) {
                     Image(systemName: droppedURLs.isEmpty ? "arrow.down.doc" : "doc.on.doc.fill")
                         .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(isTargeted ? SproutPalette.accent : SproutPalette.accent.opacity(0.88))
+                        .foregroundStyle(isTargeted ? SproutPalette.dropIcon : SproutPalette.dropIcon.opacity(0.88))
                     Text(droppedFileLabel)
                         .font(.headline)
                         .lineLimit(2)
@@ -551,12 +574,12 @@ struct ContentView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 80)
-        .background(isTargeted ? SproutPalette.accent.opacity(0.12) : SproutPalette.panelBackground(colorScheme))
+        .background(isTargeted ? SproutPalette.selectionAccent.opacity(0.12) : SproutPalette.panelBackground(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(
-                    isTargeted ? SproutPalette.accent : SproutPalette.border(colorScheme),
+                    isTargeted ? SproutPalette.selectionAccent : SproutPalette.border(colorScheme),
                     style: StrokeStyle(lineWidth: 1, dash: [5, 4], dashPhase: 0)
                 )
         }
@@ -1561,7 +1584,7 @@ struct PreferencesView: View {
         }
         .padding(24)
         .frame(width: 360, height: 220)
-        .tint(SproutPalette.accent)
+        .tint(SproutPalette.selectionAccent)
         .background(SproutPalette.windowBackground(colorScheme))
     }
 }
@@ -1600,7 +1623,7 @@ struct HelpView: View {
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .tint(SproutPalette.accent)
+        .tint(SproutPalette.selectionAccent)
         .background(SproutPalette.windowBackground(colorScheme))
     }
 
