@@ -796,6 +796,16 @@ struct ContentView: View {
                     }
                 }
                 GridRow {
+                    settingLabel("")
+                    Toggle(
+                        t("完了時にフォルダを開く", "Open folder when complete"),
+                        isOn: Binding(
+                            get: { options.shouldOpenDestinationWhenComplete },
+                            set: { options.opensDestinationWhenComplete = $0 }
+                        )
+                    )
+                }
+                GridRow {
                     settingLabel(t("リサイズ方式", "Resize method"))
                     Picker("", selection: $options.resizeMethod) {
                         ForEach(ResizeMethod.allCases) { method in
@@ -1358,6 +1368,7 @@ struct ContentView: View {
                     "\nFiles: \(filesToConvert.count) × \(selectedFormats.count) format(s)"
                 )
                 let outputSequence = OutputSequence()
+                var outputFolders = Set<URL>()
                 for (fileIndex, input) in filesToConvert.enumerated() {
                     for (formatIndex, format) in selectedFormats.enumerated() {
                         let jobIndex = fileIndex * selectedFormats.count + formatIndex
@@ -1368,6 +1379,7 @@ struct ContentView: View {
                             selectedDestination: selectedDestination,
                             exportOptions: conversionOptions
                         )
+                        outputFolders.insert(outputBase.standardizedFileURL)
                         try await FileConverter().convert(
                             inputURL: input.url,
                             destinationURL: outputBase,
@@ -1396,6 +1408,11 @@ struct ContentView: View {
                     ? "\(filesToConvert.count)個のファイルを\(selectedFormats.count)形式へ変換しました。"
                     : "Converted \(filesToConvert.count) file(s) into \(selectedFormats.count) format(s)."
                 logText += conversionLanguageIsJapanese ? "\n完了" : "\nCompleted"
+                if conversionOptions.shouldOpenDestinationWhenComplete {
+                    for folder in outputFolders.sorted(by: { $0.path < $1.path }) {
+                        NSWorkspace.shared.open(folder)
+                    }
+                }
             } catch {
                 isConverting = false
                 logText += "\nERROR: \(error.localizedDescription)"

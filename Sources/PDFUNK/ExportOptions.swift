@@ -160,7 +160,7 @@ struct FilenameOperation: Codable, Identifiable {
 
 struct ExportOptions: Codable {
     // Retained for compatibility with presets created before multi-format export.
-    var format: ExportFormat = .png
+    var format: ExportFormat = .jpg
     var formats: Set<ExportFormat>?
     var pdfResolution: PDFResolutionPreset = .dpi200
     var customPDFDPI = 200
@@ -187,12 +187,14 @@ struct ExportOptions: Codable {
     var filenameOperations: [FilenameOperation]?
     var metadataMode: MetadataMode = .keep
     var preservesFileDates = true
-    var sameLocationExportMode: SameLocationExportMode? = .directly
+    var sameLocationExportMode: SameLocationExportMode? = .formatFolder
+    var opensDestinationWhenComplete: Bool? = true
     var resizeMethod: ResizeMethod = .automatic
 
     var pdfDPI: Int { pdfResolution.value(customDPI: customPDFDPI) }
     var saveDPI: Int { saveResolution.value(customDPI: customSaveDPI) }
     var effectivePDFDPI: Int { saveSizeMode == .resolution ? saveDPI : pdfDPI }
+    var shouldOpenDestinationWhenComplete: Bool { opensDestinationWhenComplete ?? true }
 
     var selectedFormats: [ExportFormat] {
         let selection = formats.flatMap { $0.isEmpty ? nil : $0 } ?? [format]
