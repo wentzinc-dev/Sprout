@@ -23,7 +23,7 @@ struct WindowConfigurator: NSViewRepresentable {
 
     private func configure(_ window: NSWindow?, coordinator: Coordinator) {
         guard let window else { return }
-        window.title = "Sprout"
+        window.title = "Sprouts"
         window.titleVisibility = .visible
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isOpaque = true

@@ -2,6 +2,76 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
+private enum DestinationBookmarkStore {
+    private static let selectedDestinationKey = "selectedDestinationBookmark"
+    private static let sourceFoldersKey = "sourceFolderBookmarks"
+
+    static func saveSelectedDestination(_ url: URL) throws {
+        UserDefaults.standard.set(try bookmarkData(for: url), forKey: selectedDestinationKey)
+    }
+
+    static func selectedDestination() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: selectedDestinationKey) else { return nil }
+        return resolve(data, removingStaleValueForKey: selectedDestinationKey)
+    }
+
+    static func saveSourceFolder(_ url: URL) throws {
+        var bookmarks = sourceFolderBookmarks
+        bookmarks[url.standardizedFileURL.path] = try bookmarkData(for: url)
+        UserDefaults.standard.set(bookmarks, forKey: sourceFoldersKey)
+    }
+
+    static func sourceFolder(containing url: URL) -> URL? {
+        let targetPath = url.standardizedFileURL.path
+        let candidatePaths = sourceFolderBookmarks.keys
+            .filter { targetPath == $0 || targetPath.hasPrefix($0 + "/") }
+            .sorted { $0.count > $1.count }
+
+        for path in candidatePaths {
+            guard let data = sourceFolderBookmarks[path] else { continue }
+            var isStale = false
+            if let resolved = try? URL(
+                resolvingBookmarkData: data,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ), !isStale, resolved.standardizedFileURL.path == path {
+                return resolved
+            }
+            removeSourceFolder(path: path)
+        }
+        return nil
+    }
+
+    private static var sourceFolderBookmarks: [String: Data] {
+        UserDefaults.standard.dictionary(forKey: sourceFoldersKey) as? [String: Data] ?? [:]
+    }
+
+    private static func bookmarkData(for url: URL) throws -> Data {
+        try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+
+    private static func resolve(_ data: Data, removingStaleValueForKey key: String) -> URL? {
+        var isStale = false
+        guard let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ), !isStale else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return nil
+        }
+        return url
+    }
+
+    private static func removeSourceFolder(path: String) {
+        var bookmarks = sourceFolderBookmarks
+        bookmarks.removeValue(forKey: path)
+        UserDefaults.standard.set(bookmarks, forKey: sourceFoldersKey)
+    }
+}
+
 private struct MainContentHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
@@ -10,7 +80,7 @@ private struct MainContentHeightPreferenceKey: PreferenceKey {
     }
 }
 
-private enum SproutPalette {
+private enum SproutsPalette {
     static let accent = Color(red: 0.26, green: 0.56, blue: 0.79)
     static let selectionAccent = Color(red: 0.47, green: 0.78, blue: 0.60)
     static let selectionForeground = Color(red: 0.08, green: 0.22, blue: 0.14)
@@ -59,7 +129,7 @@ private enum SproutPalette {
     }
 }
 
-private struct SproutPanelGroupBoxStyle: GroupBoxStyle {
+private struct SproutsPanelGroupBoxStyle: GroupBoxStyle {
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
@@ -69,60 +139,60 @@ private struct SproutPanelGroupBoxStyle: GroupBoxStyle {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 11)
                 .frame(height: 32)
-                .background(SproutPalette.panelHeader(colorScheme))
+                .background(SproutsPalette.panelHeader(colorScheme))
 
             Rectangle()
-                .fill(SproutPalette.border(colorScheme))
+                .fill(SproutsPalette.border(colorScheme))
                 .frame(height: 1)
 
             configuration.content
                 .padding(11)
         }
-        .background(SproutPalette.panelBackground(colorScheme))
+        .background(SproutsPalette.panelBackground(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+                .stroke(SproutsPalette.border(colorScheme), lineWidth: 1)
         }
         .shadow(color: colorScheme == .dark ? .black.opacity(0.18) : .black.opacity(0.06), radius: 2, y: 1)
     }
 }
 
-private struct SproutFormatButtonStyle: ButtonStyle {
+private struct SproutsFormatButtonStyle: ButtonStyle {
     let isSelected: Bool
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(isSelected ? SproutPalette.selectionForeground : Color.secondary)
+            .foregroundStyle(isSelected ? SproutsPalette.selectionForeground : Color.secondary)
             .padding(.horizontal, 9)
             .frame(minWidth: 44, minHeight: 27)
             .background {
                 if isSelected {
                     LinearGradient(
-                        colors: [SproutPalette.selectionAccent.opacity(0.98), SproutPalette.selectionAccent.opacity(0.78)],
+                        colors: [SproutsPalette.selectionAccent.opacity(0.98), SproutsPalette.selectionAccent.opacity(0.78)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 } else {
-                    SproutPalette.controlBackground(colorScheme)
+                    SproutsPalette.controlBackground(colorScheme)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .stroke(
-                        isSelected ? SproutPalette.selectionAccent.opacity(0.92) : SproutPalette.border(colorScheme),
+                        isSelected ? SproutsPalette.selectionAccent.opacity(0.92) : SproutsPalette.border(colorScheme),
                         lineWidth: 1
                     )
             }
-            .shadow(color: isSelected ? SproutPalette.selectionAccent.opacity(0.18) : .clear, radius: 3, y: 1)
+            .shadow(color: isSelected ? SproutsPalette.selectionAccent.opacity(0.18) : .clear, radius: 3, y: 1)
             .opacity(configuration.isPressed ? 0.78 : 1)
     }
 }
 
-private struct SproutPrimaryButtonStyle: ButtonStyle {
+private struct SproutsPrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
@@ -134,7 +204,7 @@ private struct SproutPrimaryButtonStyle: ButtonStyle {
             .background {
                 LinearGradient(
                     colors: isEnabled
-                        ? [SproutPalette.accent.opacity(0.98), SproutPalette.accent.opacity(0.76)]
+                        ? [SproutsPalette.accent.opacity(0.98), SproutsPalette.accent.opacity(0.76)]
                         : [Color.gray.opacity(0.30), Color.gray.opacity(0.20)],
                     startPoint: .top,
                     endPoint: .bottom
@@ -143,14 +213,14 @@ private struct SproutPrimaryButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .stroke(isEnabled ? SproutPalette.accent.opacity(0.92) : Color.gray.opacity(0.24), lineWidth: 1)
+                    .stroke(isEnabled ? SproutsPalette.accent.opacity(0.92) : Color.gray.opacity(0.24), lineWidth: 1)
             }
-            .shadow(color: isEnabled ? SproutPalette.accent.opacity(0.20) : .clear, radius: 5, y: 2)
+            .shadow(color: isEnabled ? SproutsPalette.accent.opacity(0.20) : .clear, radius: 5, y: 2)
             .opacity(configuration.isPressed ? 0.80 : 1)
     }
 }
 
-private struct SproutSecondaryButtonStyle: ButtonStyle {
+private struct SproutsSecondaryButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
@@ -159,11 +229,11 @@ private struct SproutSecondaryButtonStyle: ButtonStyle {
             .foregroundStyle(.primary)
             .padding(.horizontal, 12)
             .frame(minHeight: 29)
-            .background(SproutPalette.controlBackground(colorScheme))
+            .background(SproutsPalette.controlBackground(colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+                    .stroke(SproutsPalette.border(colorScheme), lineWidth: 1)
             }
             .opacity(configuration.isPressed ? 0.72 : 1)
     }
@@ -198,7 +268,7 @@ private struct ConversionInput {
     let relativeDirectory: String
 }
 
-private struct SproutPreset: Codable, Identifiable {
+private struct SproutsPreset: Codable, Identifiable {
     var id = UUID()
     var name: String
     var options: ExportOptions
@@ -219,9 +289,9 @@ private struct PresetWindowView: View {
     let onDone: () -> Void
     @Environment(\.colorScheme) private var colorScheme
 
-    private var savedPresets: [SproutPreset] {
+    private var savedPresets: [SproutsPreset] {
         guard let data = savedPresetsData.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([SproutPreset].self, from: data)) ?? []
+        return (try? JSONDecoder().decode([SproutsPreset].self, from: data)) ?? []
     }
 
     var body: some View {
@@ -270,8 +340,8 @@ private struct PresetWindowView: View {
             }
         }
         .padding(20)
-        .tint(SproutPalette.selectionAccent)
-        .background(SproutPalette.windowBackground(colorScheme))
+        .tint(SproutsPalette.selectionAccent)
+        .background(SproutsPalette.windowBackground(colorScheme))
     }
 
     private func saveCurrentPreset() {
@@ -285,7 +355,7 @@ private struct PresetWindowView: View {
             presets[index].preservesFolderStructure = preservesFolderStructure
             savedID = presets[index].id
         } else {
-            let preset = SproutPreset(
+            let preset = SproutsPreset(
                 name: cleanName,
                 options: options,
                 destinationMode: destinationMode,
@@ -311,7 +381,9 @@ private struct PresetWindowView: View {
         }
         options = loadedOptions
         destinationMode = preset.destinationMode
-        destinationURL = nil
+        destinationURL = preset.destinationMode == .selectedFolder
+            ? DestinationBookmarkStore.selectedDestination()
+            : nil
         preservesFolderStructure = preset.preservesFolderStructure ?? false
         presetName = preset.name
     }
@@ -340,7 +412,7 @@ private struct PresetWindowView: View {
     }
 
     @discardableResult
-    private func persistPresets(_ presets: [SproutPreset]) -> Bool {
+    private func persistPresets(_ presets: [SproutsPreset]) -> Bool {
         guard let data = try? JSONEncoder().encode(presets),
               let json = String(data: data, encoding: .utf8) else { return false }
         savedPresetsData = json
@@ -379,6 +451,10 @@ struct ContentView: View {
     @State private var totalFileCount = 0
     @State private var logText = ""
     @Environment(\.colorScheme) private var colorScheme
+
+    init() {
+        _destinationURL = State(initialValue: DestinationBookmarkStore.selectedDestination())
+    }
 
     private var language: AppLanguage { AppLanguage(rawValue: appLanguage) ?? .japanese }
     private var isJapanese: Bool { language == .japanese }
@@ -432,12 +508,12 @@ struct ContentView: View {
                     .padding(.horizontal, 16 * uiFontSize.scale)
                     .padding(.vertical, 16 * uiFontSize.scale)
             }
-            .frame(width: uiFontSize.compactWidth)
-            .background(SproutPalette.windowBackground(colorScheme))
+            .frame(minWidth: uiFontSize.compactWidth, maxWidth: .infinity)
+            .background(SproutsPalette.windowBackground(colorScheme))
 
             if showsInspectorSidebar {
                 Divider()
-                    .overlay(SproutPalette.border(colorScheme))
+                    .overlay(SproutsPalette.border(colorScheme))
                 ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
@@ -452,7 +528,7 @@ struct ContentView: View {
                         .help(t("サイドバーを閉じる", "Hide inspector sidebar"))
                     }
                     Button(t("プリセット", "Presets"), action: openPresetWindow)
-                        .buttonStyle(SproutSecondaryButtonStyle())
+                        .buttonStyle(SproutsSecondaryButtonStyle())
                         .frame(maxWidth: .infinity)
                     executionDetails
                     Spacer(minLength: 0)
@@ -462,15 +538,19 @@ struct ContentView: View {
                 .padding(18 * uiFontSize.scale)
                 }
                 .frame(width: uiFontSize.sidebarWidth)
-                .background(SproutPalette.sidebarBackground(colorScheme))
+                .background(SproutsPalette.sidebarBackground(colorScheme))
                 .transition(.move(edge: .trailing))
             }
         }
-        .frame(width: uiFontSize.compactWidth + (showsInspectorSidebar ? uiFontSize.sidebarWidth : 0))
-        .frame(maxHeight: .infinity)
-        .tint(SproutPalette.selectionAccent)
-        .background(SproutPalette.windowBackground(colorScheme))
-        .alert("Sprout", isPresented: Binding(
+        .frame(
+            minWidth: uiFontSize.compactWidth + (showsInspectorSidebar ? uiFontSize.sidebarWidth : 0),
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .topLeading
+        )
+        .tint(SproutsPalette.selectionAccent)
+        .background(SproutsPalette.windowBackground(colorScheme))
+        .alert("Sprouts", isPresented: Binding(
             get: { alertMessage != nil },
             set: { if !$0 { alertMessage = nil } }
         )) {
@@ -496,7 +576,7 @@ struct ContentView: View {
             }
             ProgressView(value: conversionProgress, total: 1)
                 .progressViewStyle(.linear)
-                .tint(SproutPalette.accent)
+                .tint(SproutsPalette.accent)
         }
         .padding(.top, 8)
         .accessibilityLabel(t("書き出し進捗", "Export progress"))
@@ -513,9 +593,9 @@ struct ContentView: View {
                 .padding(8)
         }
         .frame(height: 90)
-        .background(SproutPalette.insetBackground(colorScheme))
+        .background(SproutsPalette.insetBackground(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay { RoundedRectangle(cornerRadius: 6).stroke(SproutPalette.border(colorScheme)) }
+        .overlay { RoundedRectangle(cornerRadius: 6).stroke(SproutsPalette.border(colorScheme)) }
     }
 
     private var dropArea: some View {
@@ -526,7 +606,7 @@ struct ContentView: View {
                 VStack(spacing: 8) {
                     Image(systemName: droppedURLs.isEmpty ? "arrow.down.doc" : "doc.on.doc.fill")
                         .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(isTargeted ? SproutPalette.dropIcon : SproutPalette.dropIcon.opacity(0.88))
+                        .foregroundStyle(isTargeted ? SproutsPalette.dropIcon : SproutsPalette.dropIcon.opacity(0.88))
                     Text(droppedFileLabel)
                         .font(.headline)
                         .lineLimit(2)
@@ -574,12 +654,12 @@ struct ContentView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 80)
-        .background(isTargeted ? SproutPalette.selectionAccent.opacity(0.12) : SproutPalette.panelBackground(colorScheme))
+        .background(isTargeted ? SproutsPalette.selectionAccent.opacity(0.12) : SproutsPalette.panelBackground(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(
-                    isTargeted ? SproutPalette.selectionAccent : SproutPalette.border(colorScheme),
+                    isTargeted ? SproutsPalette.selectionAccent : SproutsPalette.border(colorScheme),
                     style: StrokeStyle(lineWidth: 1, dash: [5, 4], dashPhase: 0)
                 )
         }
@@ -615,7 +695,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, 4)
         }
-        .groupBoxStyle(SproutPanelGroupBoxStyle())
+        .groupBoxStyle(SproutsPanelGroupBoxStyle())
     }
 
     private var advancedSettingsDisclosure: some View {
@@ -641,11 +721,11 @@ struct ContentView: View {
             if showsAdvancedSettings {
                 advancedSettings
                     .padding(12)
-                    .background(SproutPalette.panelBackground(colorScheme))
+                    .background(SproutsPalette.panelBackground(colorScheme))
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+                            .stroke(SproutsPalette.border(colorScheme), lineWidth: 1)
                     }
             }
         }
@@ -705,13 +785,13 @@ struct ContentView: View {
                                 Button(format.displayName) {
                                     options.setSelected(format, to: false)
                                 }
-                                .buttonStyle(SproutFormatButtonStyle(isSelected: true))
+                                .buttonStyle(SproutsFormatButtonStyle(isSelected: true))
                                 .accessibilityValue(t("選択中", "Selected"))
                             } else {
                                 Button(format.displayName) {
                                     options.setSelected(format, to: true)
                                 }
-                                .buttonStyle(SproutFormatButtonStyle(isSelected: false))
+                                .buttonStyle(SproutsFormatButtonStyle(isSelected: false))
                                 .accessibilityValue(t("未選択", "Not selected"))
                             }
                         }
@@ -961,7 +1041,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                 }
                 .padding(7)
-                .background(SproutPalette.controlBackground(colorScheme))
+                .background(SproutsPalette.controlBackground(colorScheme))
                 .clipShape(RoundedRectangle(cornerRadius: 7))
             }
 
@@ -1015,11 +1095,11 @@ struct ContentView: View {
                     .font(.subheadline.weight(.semibold))
             }
         }
-        .background(SproutPalette.panelBackground(colorScheme))
+        .background(SproutsPalette.panelBackground(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(SproutPalette.border(colorScheme), lineWidth: 1)
+                .stroke(SproutsPalette.border(colorScheme), lineWidth: 1)
         }
     }
 
@@ -1211,7 +1291,7 @@ struct ContentView: View {
             }
             .padding(.top, 4)
         }
-        .groupBoxStyle(SproutPanelGroupBoxStyle())
+        .groupBoxStyle(SproutsPanelGroupBoxStyle())
     }
 
     private var exportArea: some View {
@@ -1224,7 +1304,7 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
             }
             Button(isConverting ? t("変換中…", "Converting…") : t("画像を書き出す", "Export images"), action: export)
-                .buttonStyle(SproutPrimaryButtonStyle())
+                .buttonStyle(SproutsPrimaryButtonStyle())
                 .frame(minWidth: 156 * uiFontSize.scale, minHeight: 38 * uiFontSize.scale)
                 .disabled(
                     droppedURLs.isEmpty
@@ -1236,7 +1316,7 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private var borderColor: Color { SproutPalette.border(colorScheme) }
+    private var borderColor: Color { SproutsPalette.border(colorScheme) }
 
     private func t(_ japanese: String, _ english: String) -> String {
         isJapanese ? japanese : english
@@ -1278,7 +1358,7 @@ struct ContentView: View {
             backing: .buffered,
             defer: false
         )
-        window.title = t("Sprout プリセット", "Sprout Presets")
+        window.title = t("Sprouts プリセット", "Sprouts Presets")
         window.center()
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: PresetWindowView(
@@ -1329,7 +1409,17 @@ struct ContentView: View {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK { destinationURL = panel.url }
+        if panel.runModal() == .OK, let url = panel.url {
+            do {
+                try DestinationBookmarkStore.saveSelectedDestination(url)
+                destinationURL = url
+            } catch {
+                alertMessage = t(
+                    "保存先のアクセス権を保存できませんでした：\(error.localizedDescription)",
+                    "Could not remember output-folder access: \(error.localizedDescription)"
+                )
+            }
+        }
     }
 
     private func export() {
@@ -1368,7 +1458,7 @@ struct ContentView: View {
                     "\nFiles: \(filesToConvert.count) × \(selectedFormats.count) format(s)"
                 )
                 let outputSequence = OutputSequence()
-                var outputFolders = Set<URL>()
+                var exportedURLs: [URL] = []
                 for (fileIndex, input) in filesToConvert.enumerated() {
                     for (formatIndex, format) in selectedFormats.enumerated() {
                         let jobIndex = fileIndex * selectedFormats.count + formatIndex
@@ -1379,8 +1469,7 @@ struct ContentView: View {
                             selectedDestination: selectedDestination,
                             exportOptions: conversionOptions
                         )
-                        outputFolders.insert(outputBase.standardizedFileURL)
-                        try await FileConverter().convert(
+                        let createdURLs = try await FileConverter().convert(
                             inputURL: input.url,
                             destinationURL: outputBase,
                             options: formatOptions,
@@ -1396,6 +1485,7 @@ struct ContentView: View {
                                 ? "ファイル \(fileIndex + 1)/\(filesToConvert.count)・\(format.displayName)・\(completed)/\(total)"
                                 : "File \(fileIndex + 1)/\(filesToConvert.count) · \(format.displayName) · \(completed)/\(total)"
                         }
+                        exportedURLs.append(contentsOf: createdURLs)
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                             completedFileCount = jobIndex + 1
                         }
@@ -1409,9 +1499,7 @@ struct ContentView: View {
                     : "Converted \(filesToConvert.count) file(s) into \(selectedFormats.count) format(s)."
                 logText += conversionLanguageIsJapanese ? "\n完了" : "\nCompleted"
                 if conversionOptions.shouldOpenDestinationWhenComplete {
-                    for folder in outputFolders.sorted(by: { $0.path < $1.path }) {
-                        NSWorkspace.shared.open(folder)
-                    }
+                    NSWorkspace.shared.activateFileViewerSelecting(exportedURLs)
                 }
             } catch {
                 isConverting = false
@@ -1428,11 +1516,15 @@ struct ContentView: View {
         }.keys.sorted { $0.path < $1.path }
         var granted: [URL] = []
         for parent in parents {
+            if let restored = DestinationBookmarkStore.sourceFolder(containing: parent) {
+                granted.append(restored)
+                continue
+            }
             let panel = NSOpenPanel()
             panel.title = t("保存先へのアクセス", "Output Folder Access")
             panel.message = t(
-                "「\(parent.lastPathComponent)」へ画像を作成するため、このフォルダを選択してください。",
-                "Select “\(parent.lastPathComponent)” to allow Sprout to create output files there."
+                "「\(parent.lastPathComponent)」または上位フォルダを選択してください。上位フォルダを選ぶと、その配下では次回から確認されません。",
+                "Select “\(parent.lastPathComponent)” or one of its parent folders. Choosing a parent avoids future prompts anywhere inside it."
             )
             panel.prompt = t("アクセスを許可", "Allow Access")
             panel.directoryURL = parent
@@ -1440,14 +1532,25 @@ struct ContentView: View {
             panel.canChooseFiles = false
             panel.allowsMultipleSelection = false
             guard panel.runModal() == .OK, let selected = panel.url else { return nil }
-            guard selected.standardizedFileURL == parent else {
+            let selectedPath = selected.standardizedFileURL.path
+            let parentPath = parent.standardizedFileURL.path
+            guard parentPath == selectedPath || parentPath.hasPrefix(selectedPath + "/") else {
                 alertMessage = t(
-                    "入力ファイルと同じフォルダを選択してください。",
-                    "Select the folder containing the input file."
+                    "入力ファイルのあるフォルダ、またはその上位フォルダを選択してください。",
+                    "Select the folder containing the input file or one of its parent folders."
                 )
                 return nil
             }
-            granted.append(selected)
+            do {
+                try DestinationBookmarkStore.saveSourceFolder(selected)
+                granted.append(selected)
+            } catch {
+                alertMessage = t(
+                    "フォルダのアクセス権を保存できませんでした：\(error.localizedDescription)",
+                    "Could not remember folder access: \(error.localizedDescription)"
+                )
+                return nil
+            }
         }
         return granted
     }
@@ -1601,8 +1704,8 @@ struct PreferencesView: View {
         }
         .padding(24)
         .frame(width: 360, height: 220)
-        .tint(SproutPalette.selectionAccent)
-        .background(SproutPalette.windowBackground(colorScheme))
+        .tint(SproutsPalette.selectionAccent)
+        .background(SproutsPalette.windowBackground(colorScheme))
     }
 }
 
@@ -1614,7 +1717,7 @@ struct HelpView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text(japanese ? "Sproutの使い方" : "Using Sprout").font(.largeTitle.bold())
+                Text(japanese ? "Sproutsの使い方" : "Using Sprouts").font(.largeTitle.bold())
                 helpSection(japanese ? "基本操作" : "Basics", japanese
                     ? "PNG、JPG、PDF、PSD、TIFF、GIF、WebP、またはそれらを含むフォルダをドロップします。保存先、保存サイズ、形式、カラーを設定し、「画像を書き出す」を押してください。複数形式を同時に処理できます。処理状況とコピー可能なログは右下に表示されます。"
                     : "Drop PNG, JPG, PDF, PSD, TIFF, GIF, WebP, or folders containing them. Choose the destination and output settings, then click Export images. Progress and a selectable log appear at bottom right.")
@@ -1623,10 +1726,10 @@ struct HelpView: View {
                     : "Each PDF page is rasterized at the selected import PPI, then resized. Vector objects, text, transparency and color spaces are flattened into one pixel image; editable structure is not preserved.")
                 helpSection("PSD / TIFF / GIF", japanese
                     ? "PSDはPhotoshop保存時に生成される統合画像（Composite Image）を使用します。レイヤー、マスク、スマートオブジェクト、調整レイヤー、効果は保持・再構築しません。統合画像が保存されていないPSDは読み込めない場合があります。TIFFもレイヤーを保持しません。TIFF規格は複数画像を格納できるため、そのような特殊なTIFFを読み込んだ場合は各画像を書き出します。一般的な写真TIFFは通常1画像です。アニメーションGIFは先頭フレームのみ使用します。"
-                    : "PSD uses the Composite Image generated when Photoshop saves the file. Layers, masks, smart objects, adjustments and effects are not reconstructed. PSD files saved without a composite may fail. TIFF layers are not preserved. The TIFF format can technically contain multiple images; Sprout exports each one when encountered, though ordinary photo TIFF files usually contain one. Animated GIF uses only its first frame.")
+                    : "PSD uses the Composite Image generated when Photoshop saves the file. Layers, masks, smart objects, adjustments and effects are not reconstructed. PSD files saved without a composite may fail. TIFF layers are not preserved. The TIFF format can technically contain multiple images; Sprouts exports each one when encountered, though ordinary photo TIFF files usually contain one. Animated GIF uses only its first frame.")
                 helpSection(japanese ? "保存サイズとリサイズ" : "Sizing and resizing", japanese
-                    ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（PPI）を選ぶと、通常画像も「指定PPI ÷ 元画像PPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にPPI情報がない場合は72ppiとして計算します。たとえば元が72ppiの画像を300ppiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
-                    : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. PPI mode also resizes ordinary images by target PPI divided by source PPI, preserving physical print size. Images without PPI metadata are treated as 72 ppi. For example, 72 to 300 ppi enlarges each dimension by about 4.17× and may reduce quality. Sprout uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
+                    ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（PPI）を選ぶと、通常画像も「指定PPI ÷ 元画像PPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にPPI情報がない場合は72ppiとして計算します。たとえば元が72ppiの画像を300ppiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutsの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
+                    : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. PPI mode also resizes ordinary images by target PPI divided by source PPI, preserving physical print size. Images without PPI metadata are treated as 72 ppi. For example, 72 to 300 ppi enlarges each dimension by about 4.17× and may reduce quality. Sprouts uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
                 helpSection(japanese ? "カラープロファイル・形式" : "Color profiles and formats", japanese
                     ? "カラー変換後、ICCを埋め込む設定を選べます。プロファイルを埋め込まない場合、他アプリで色の見え方が変わる可能性があります。JPEGは透過を保持できません。PNG圧縮率は画質ではなく処理時間と容量に影響します。WebP品質は非可逆圧縮品質です。16 bitは対応する入力・出力形式でのみ有効です。"
                     : "You can embed the ICC profile after color conversion. Without it, other apps may display color differently. JPEG cannot preserve transparency. PNG compression affects speed and size, not quality. WebP quality controls lossy compression. 16-bit is used only where supported.")
@@ -1640,8 +1743,8 @@ struct HelpView: View {
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .tint(SproutPalette.selectionAccent)
-        .background(SproutPalette.windowBackground(colorScheme))
+        .tint(SproutsPalette.selectionAccent)
+        .background(SproutsPalette.windowBackground(colorScheme))
     }
 
     private func helpSection(_ title: String, _ body: String) -> some View {

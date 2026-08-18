@@ -13,7 +13,7 @@ struct AppLayout {
 }
 
 @main
-struct SproutApp: App {
+struct SproutsApp: App {
     @AppStorage("appTheme") private var appTheme = AppTheme.dark.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
     @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
@@ -21,7 +21,7 @@ struct SproutApp: App {
     @AppStorage("requiredMainContentHeight") private var requiredMainContentHeight: Double = 0
 
     var body: some Scene {
-        WindowGroup("Sprout") {
+        WindowGroup("Sprouts") {
             let layout = AppLayout()
             let contentWidth = layout.compactWidth + (showsInspectorSidebar ? layout.sidebarWidth : 0)
             let requestedHeight = max(
@@ -45,10 +45,10 @@ struct SproutApp: App {
         .defaultSize(width: 420, height: 580)
 
         Settings {
-            SproutSettingsView()
+            SproutsSettingsView()
         }
 
-        Window("Sprout ヘルプ", id: "sprout-help") {
+        Window("Sprouts ヘルプ", id: "sprout-help") {
             HelpView()
         }
         .defaultSize(width: 700, height: 720)
@@ -56,7 +56,7 @@ struct SproutApp: App {
     }
 }
 
-private struct SproutSettingsView: View {
+private struct SproutsSettingsView: View {
     @AppStorage("appTheme") private var appTheme = AppTheme.dark.rawValue
     @AppStorage("appLanguage") private var appLanguage = AppLanguage.japanese.rawValue
 
@@ -72,7 +72,7 @@ private struct HelpCommands: Commands {
     @Environment(\.openWindow) private var openWindow
     var body: some Commands {
         CommandGroup(replacing: .help) {
-            Button("Sproutの使い方") { openWindow(id: "sprout-help") }
+            Button("Sproutsの使い方") { openWindow(id: "sprout-help") }
                 .keyboardShortcut("?", modifiers: [.command])
         }
     }

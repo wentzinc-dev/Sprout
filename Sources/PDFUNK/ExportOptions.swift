@@ -303,7 +303,8 @@ enum OutputFilenameBuilder {
         for inputURL: URL,
         sequence: Int,
         format: ExportFormat,
-        options: ExportOptions
+        options: ExportOptions,
+        pageNumber: Int? = nil
     ) -> String {
         var name = inputURL.deletingPathExtension().lastPathComponent
         for operation in options.effectiveFilenameOperations {
@@ -324,6 +325,8 @@ enum OutputFilenameBuilder {
         }
         let invalid = CharacterSet(charactersIn: "/:")
         let sanitized = name.components(separatedBy: invalid).joined(separator: "_")
-        return "\(sanitized.isEmpty ? "image" : sanitized).\(format.fileExtension)"
+        let baseName = sanitized.isEmpty ? "image" : sanitized
+        let pageSuffix = pageNumber.map { String(format: "_%03d", $0) } ?? ""
+        return "\(baseName)\(pageSuffix).\(format.fileExtension)"
     }
 }

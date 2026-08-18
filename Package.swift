@@ -3,10 +3,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "Sprout",
+    name: "Sprouts",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "Sprout", targets: ["PDFUNK"])
+        .executable(name: "Sprouts", targets: ["PDFUNK"])
     ],
     dependencies: [
         .package(url: "https://github.com/SDWebImage/SDWebImageWebPCoder.git", from: "0.15.0")
