@@ -860,20 +860,18 @@ struct ContentView: View {
                     )
                     .disabled(!containsFolder)
                 }
-                if destinationMode == .sameLocation {
-                    GridRow {
-                        settingLabel("")
-                        Toggle(
-                            t(
-                                "形式ごとのフォルダを作成し、そこへ書き出す",
-                                "Create a folder for each format and export into it"
-                            ),
-                            isOn: Binding(
-                                get: { options.sameLocationExportMode == .formatFolder },
-                                set: { options.sameLocationExportMode = $0 ? .formatFolder : .directly }
-                            )
+                GridRow {
+                    settingLabel("")
+                    Toggle(
+                        t(
+                            "形式ごとのフォルダを作成し、そこへ書き出す",
+                            "Create a folder for each format and export into it"
+                        ),
+                        isOn: Binding(
+                            get: { options.usesFormatFolders },
+                            set: { options.sameLocationExportMode = $0 ? .formatFolder : .directly }
                         )
-                    }
+                    )
                 }
                 GridRow {
                     settingLabel("")
@@ -1560,7 +1558,7 @@ struct ContentView: View {
     private var destinationDescription: String {
         switch destinationMode {
         case .sameLocation:
-            if options.sameLocationExportMode == .formatFolder {
+            if options.usesFormatFolders {
                 let formatNames = options.selectedFormats.map(\.displayName).joined(separator: " / ")
                 return t(
                     "入力ファイルと同じ場所の形式別フォルダ（\(formatNames)）",
@@ -1569,8 +1567,17 @@ struct ContentView: View {
             }
             return t("入力ファイルと同じ場所", "Next to each source file")
         case .selectedFolder:
-            return destinationURL?.path(percentEncoded: false)
-                ?? t("保存先を選択してください", "Choose an output folder")
+            guard let path = destinationURL?.path(percentEncoded: false) else {
+                return t("保存先を選択してください", "Choose an output folder")
+            }
+            if options.usesFormatFolders {
+                let formatNames = options.selectedFormats.map(\.displayName).joined(separator: " / ")
+                return t(
+                    "\(path) 内の形式別フォルダ（\(formatNames)）",
+                    "Format folders in \(path) (\(formatNames))"
+                )
+            }
+            return path
         }
     }
 
@@ -1628,7 +1635,7 @@ struct ContentView: View {
     ) throws -> URL {
         if destinationMode == .sameLocation {
             if let rootFolder = input.rootFolder {
-                var base = exportOptions.sameLocationExportMode == .formatFolder
+                var base = exportOptions.usesFormatFolders
                     ? rootFolder.appendingPathComponent(format.displayName, isDirectory: true)
                     : rootFolder
                 if preservesFolderStructure && !input.relativeDirectory.isEmpty {
@@ -1638,7 +1645,7 @@ struct ContentView: View {
                 return base
             }
             let sourceFolder = input.url.deletingLastPathComponent()
-            guard exportOptions.sameLocationExportMode == .formatFolder else { return sourceFolder }
+            guard exportOptions.usesFormatFolders else { return sourceFolder }
             let formatFolder = sourceFolder.appendingPathComponent(format.displayName, isDirectory: true)
             try FileManager.default.createDirectory(at: formatFolder, withIntermediateDirectories: true)
             return formatFolder
@@ -1646,13 +1653,16 @@ struct ContentView: View {
         guard var base = selectedDestination else {
             throw ConversionError.incompatibleOptions(t("保存先を選択してください。", "Choose an output folder."))
         }
+        if exportOptions.usesFormatFolders {
+            base.appendPathComponent(format.displayName, isDirectory: true)
+        }
         if preservesFolderStructure, let root = input.rootFolder {
             base.appendPathComponent(root.lastPathComponent, isDirectory: true)
             if !input.relativeDirectory.isEmpty {
                 base.appendPathComponent(input.relativeDirectory, isDirectory: true)
             }
-            try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         }
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }
 }
@@ -1728,14 +1738,14 @@ struct HelpView: View {
                     ? "PSDはPhotoshop保存時に生成される統合画像（Composite Image）を使用します。レイヤー、マスク、スマートオブジェクト、調整レイヤー、効果は保持・再構築しません。統合画像が保存されていないPSDは読み込めない場合があります。TIFFもレイヤーを保持しません。TIFF規格は複数画像を格納できるため、そのような特殊なTIFFを読み込んだ場合は各画像を書き出します。一般的な写真TIFFは通常1画像です。アニメーションGIFは先頭フレームのみ使用します。"
                     : "PSD uses the Composite Image generated when Photoshop saves the file. Layers, masks, smart objects, adjustments and effects are not reconstructed. PSD files saved without a composite may fail. TIFF layers are not preserved. The TIFF format can technically contain multiple images; Sprouts exports each one when encountered, though ordinary photo TIFF files usually contain one. Animated GIF uses only its first frame.")
                 helpSection(japanese ? "保存サイズとリサイズ" : "Sizing and resizing", japanese
-                    ? "100%は元のピクセル数を維持します。「以内」は小さい画像を拡大しません。長辺・短辺・幅・高さ指定は縦横比を維持します。解像度（PPI）を選ぶと、通常画像も「指定PPI ÷ 元画像PPI」の倍率でピクセル寸法を変更し、印刷上の実寸を維持します。元画像にPPI情報がない場合は72ppiとして計算します。たとえば元が72ppiの画像を300ppiにすると、縦横は約4.17倍になります。大幅な拡大では画質が低下します。Sproutsの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
-                    : "100% preserves pixel dimensions. 'Within' modes never enlarge smaller images, and edge/width/height modes preserve aspect ratio. PPI mode also resizes ordinary images by target PPI divided by source PPI, preserving physical print size. Images without PPI metadata are treated as 72 ppi. For example, 72 to 300 ppi enlarges each dimension by about 4.17× and may reduce quality. Sprouts uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
+                    ? "100%は元のピクセル数を維持します。\n\n「長辺ピクセル」「短辺ピクセル」は、指定した辺が入力より大きい場合も、その値になるまで拡大します。たとえば長辺1200pxの画像に「長辺2400px」を指定すると、縦横を2倍にして長辺2400pxで保存します。縦横比は常に維持されます。\n\n「長辺px以内」「短辺px以内」は上限指定です。上限を超える画像だけ縮小し、小さい画像は拡大しません。たとえば長辺1200pxの画像に「長辺2400px以内」を指定しても1200pxのままです。「幅／高さ」は指定値まで拡大・縮小し、「幅以内／高さ以内」は上限を超える場合だけ縮小します。\n\n解像度（PPI）は「指定PPI ÷ 元画像PPI」の倍率で通常画像のピクセル寸法を変更し、印刷上の実寸を維持します。PPI情報がない画像は72ppiとして計算します。72ppiから300ppiでは縦横が約4.17倍になります。PDFは指定PPIで各ページを画像化してから保存サイズを適用します。\n\n拡大処理は存在しない細部を復元するものではなく、ぼけ、輪郭の甘さ、圧縮ノイズの拡大が起こる場合があります。Sproutsの自動、バイキュービック、シャープ、スムーズはAppleの画像処理を利用しており、Photoshopの同名方式と計算やシャープ量が完全に同一ではありません。重要な案件では結果を事前確認してください。"
+                    : "100% preserves the original pixel dimensions.\n\nLong Edge Pixels and Short Edge Pixels resize to the exact requested edge even when that requires enlargement. For example, applying Long Edge 2400 px to a 1200 px image doubles both dimensions while preserving aspect ratio.\n\nLong Edge Maximum and Short Edge Maximum are upper limits: only larger images are reduced, and smaller images are never enlarged. Width and Height resize to the requested value; Width Maximum and Height Maximum only reduce images that exceed the limit. Aspect ratio is always preserved.\n\nPPI mode resizes ordinary images by target PPI divided by source PPI to preserve physical print size. Images without PPI metadata are treated as 72 ppi, so 72 to 300 ppi enlarges each dimension by about 4.17×. PDF pages are first rasterized at the selected PPI and then processed by the save-size setting.\n\nUpscaling cannot recreate missing detail and may magnify softness or compression artifacts. Sprouts uses Apple imaging; its Automatic and bicubic variants are not numerically identical to Photoshop's similarly named methods. Verify critical output.")
                 helpSection(japanese ? "カラープロファイル・形式" : "Color profiles and formats", japanese
                     ? "カラー変換後、ICCを埋め込む設定を選べます。プロファイルを埋め込まない場合、他アプリで色の見え方が変わる可能性があります。JPEGは透過を保持できません。PNG圧縮率は画質ではなく処理時間と容量に影響します。WebP品質は非可逆圧縮品質です。16 bitは対応する入力・出力形式でのみ有効です。"
                     : "You can embed the ICC profile after color conversion. Without it, other apps may display color differently. JPEG cannot preserve transparency. PNG compression affects speed and size, not quality. WebP quality controls lossy compression. 16-bit is used only where supported.")
                 helpSection(japanese ? "ファイル名・保存先・プリセット" : "Names, destinations and presets", japanese
-                    ? "文字追加・置換は複数登録でき、上から順に適用されます。同名ファイルには (1)、(2) が付き、既存ファイルを上書きしません。同じ場所へ直接保存するか、形式名のフォルダを作成できます。フォルダ入力では構成維持を選べます。プリセットには設定値を保存しますが、選択した保存先URLそのものは保存しません。"
-                    : "Add/replace operations can be stacked and run from top to bottom. Name collisions receive (1), (2), and so on; existing files are not overwritten. Export beside sources or into a format-named folder. Folder structure can be preserved for folder input. Presets store settings, but not the chosen destination URL itself.")
+                    ? "文字追加・置換は複数登録でき、上から順に適用されます。同名ファイルには (1)、(2) が付き、既存ファイルを上書きしません。「形式ごとのフォルダを作成」は初期値ONです。同じ場所に保存する場合は入力元の隣に、フォルダを選択した場合は選択先の直下に、JPG、PNG、TIFF、WebPの形式別フォルダを作成します。OFFにすると保存先へ直接書き出します。フォルダ構成維持との併用時は、形式別フォルダの内側に元の階層を作ります。プリセットには設定値を保存しますが、選択した保存先URLそのものは保存しません。"
+                    : "Add/replace operations can be stacked and run from top to bottom. Name collisions receive (1), (2), and so on; existing files are not overwritten. Create a folder for each format is enabled by default. Sprouts creates JPG, PNG, TIFF, or WebP folders beside each source or directly inside the chosen destination. Turn it off to export directly into the destination. When Preserve Folder Structure is also enabled, the source hierarchy is created inside each format folder. Presets store settings, but not the chosen destination URL itself.")
                 helpSection(japanese ? "プライバシー" : "Privacy", japanese
                     ? "変換はMac内で完結します。入力ファイルをネットワークへ送信せず、ネットワーク権限も使用しません。"
                     : "Conversion is local to your Mac. Input files are not uploaded and no network permission is used.")

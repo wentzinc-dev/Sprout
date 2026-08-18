@@ -58,3 +58,7 @@ WebP出力には`SDWebImageWebPCoder 0.15.0`と`libwebp 1.6.0`を使用します
 Xcodeのプロジェクト名とScheme名はSproutsです。ソースターゲットの内部名は互換性のためPDFUNKのままです。生成されるアプリ名は`Sprouts.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
 
 詳細は[`docs/HANDOFF.md`](docs/HANDOFF.md)を参照してください。
+
+## サポート
+
+使い方、仕様、トラブルシューティングは[Sproutsサポート](docs/index.md)を参照してください。問題の報告は[GitHub Issues](https://github.com/wentzinc-dev/Sprouts/issues)で受け付けます。
