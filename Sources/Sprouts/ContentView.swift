@@ -43,6 +43,27 @@ private enum DestinationBookmarkStore {
         return nil
     }
 
+    static func authorizedSourceFolders() -> [URL] {
+        sourceFolderBookmarks.keys.sorted().compactMap { path in
+            guard let data = sourceFolderBookmarks[path] else { return nil }
+            var isStale = false
+            guard let resolved = try? URL(
+                resolvingBookmarkData: data,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ), !isStale else {
+                removeSourceFolder(path: path)
+                return nil
+            }
+            return resolved
+        }
+    }
+
+    static func removeSourceFolder(_ url: URL) {
+        removeSourceFolder(path: url.standardizedFileURL.path)
+    }
+
     private static var sourceFolderBookmarks: [String: Data] {
         UserDefaults.standard.dictionary(forKey: sourceFoldersKey) as? [String: Data] ?? [:]
     }
@@ -431,6 +452,7 @@ struct ContentView: View {
     @AppStorage("savedPresets") private var savedPresetsData = ""
     @AppStorage("showsInspectorSidebar") private var showsInspectorSidebar = false
     @AppStorage("requiredMainContentHeight") private var requiredMainContentHeight: Double = 0
+    @AppStorage("hasCompletedFolderAccessOnboarding") private var hasCompletedFolderAccessOnboarding = false
     @State private var droppedURLs: [URL] = []
     @State private var destinationURL: URL?
     @State private var destinationMode = DestinationMode.sameLocation
@@ -560,6 +582,38 @@ struct ContentView: View {
         }
         .task(id: inspectionKey) {
             await refreshInspection()
+        }
+        .sheet(isPresented: Binding(
+            get: { !hasCompletedFolderAccessOnboarding },
+            set: { if !$0 { hasCompletedFolderAccessOnboarding = true } }
+        )) {
+            FolderAccessOnboardingView(
+                isJapanese: isJapanese,
+                onChooseFolders: chooseInitialAccessFolders,
+                onLater: { hasCompletedFolderAccessOnboarding = true }
+            )
+        }
+    }
+
+    private func chooseInitialAccessFolders() {
+        let panel = FolderAccessManager.makeFolderPanel(
+            title: t("作業フォルダへのアクセス", "Work Folder Access"),
+            message: t(
+                "よく使う上位フォルダや外付けHDDを選択してください。その配下では書き出し時の確認を減らせます。",
+                "Choose frequently used parent folders or external drives to reduce export permission prompts within them."
+            ),
+            prompt: t("アクセスを許可", "Allow Access"),
+            allowsMultipleSelection: true
+        )
+        guard panel.runModal() == .OK else { return }
+        do {
+            try panel.urls.forEach(DestinationBookmarkStore.saveSourceFolder)
+            hasCompletedFolderAccessOnboarding = true
+        } catch {
+            alertMessage = t(
+                "フォルダのアクセス権を保存できませんでした：\(error.localizedDescription)",
+                "Could not remember folder access: \(error.localizedDescription)"
+            )
         }
     }
 
@@ -1680,11 +1734,72 @@ private struct DashedSeparator: View {
     }
 }
 
+private enum FolderAccessManager {
+    static func makeFolderPanel(
+        title: String,
+        message: String,
+        prompt: String,
+        allowsMultipleSelection: Bool
+    ) -> NSOpenPanel {
+        let panel = NSOpenPanel()
+        panel.title = title
+        panel.message = message
+        panel.prompt = prompt
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = false
+        panel.allowsMultipleSelection = allowsMultipleSelection
+        return panel
+    }
+}
+
+private struct FolderAccessOnboardingView: View {
+    let isJapanese: Bool
+    let onChooseFolders: () -> Void
+    let onLater: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: "externaldrive.badge.checkmark")
+                .font(.system(size: 34))
+                .foregroundStyle(SproutsPalette.selectionAccent)
+
+            Text(t("作業フォルダへのアクセス", "Work Folder Access"))
+                .font(.title2.bold())
+
+            Text(t(
+                "よく使う上位フォルダや外付けHDDを最初に選んでおくと、その配下では書き出すたびにアクセス確認を行う必要がなくなります。許可はこのMacだけに保存され、設定からいつでも追加・削除できます。",
+                "Choose frequently used parent folders or external drives once to avoid repeated export permission prompts within them. Access is stored only on this Mac and can be changed later in Settings."
+            ))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Button(t("あとで", "Later"), action: onLater)
+                Spacer()
+                Button(t("フォルダを選択…", "Choose Folders…"), action: onChooseFolders)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(28)
+        .frame(width: 460)
+        .tint(SproutsPalette.selectionAccent)
+        .background(SproutsPalette.windowBackground(colorScheme))
+    }
+
+    private func t(_ japanese: String, _ english: String) -> String {
+        isJapanese ? japanese : english
+    }
+}
+
 struct PreferencesView: View {
     @Binding var appTheme: String
     @Binding var appLanguage: String
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @State private var authorizedFolders: [URL] = []
+    @State private var folderAccessError: String?
 
     private var isJapanese: Bool { appLanguage == AppLanguage.japanese.rawValue }
     private func t(_ japanese: String, _ english: String) -> String { isJapanese ? japanese : english }
@@ -1704,6 +1819,41 @@ struct PreferencesView: View {
                     Text("日本語").tag(AppLanguage.japanese.rawValue)
                     Text("English").tag(AppLanguage.english.rawValue)
                 }
+
+                Section(t("フォルダアクセス", "Folder Access")) {
+                    Text(t(
+                        "登録したフォルダとその配下では、書き出し時のアクセス確認を減らせます。外付けHDD全体を使う場合はHDDのルートを選択してください。",
+                        "Registered folders and their contents can be used with fewer export permission prompts. Select an external drive's root to cover the whole drive."
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                    if authorizedFolders.isEmpty {
+                        Text(t("許可済みフォルダはありません", "No authorized folders"))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(authorizedFolders, id: \.standardizedFileURL) { folder in
+                            HStack {
+                                Image(systemName: "folder")
+                                Text(folder.path(percentEncoded: false))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .help(folder.path(percentEncoded: false))
+                                Spacer()
+                                Button {
+                                    DestinationBookmarkStore.removeSourceFolder(folder)
+                                    refreshAuthorizedFolders()
+                                } label: {
+                                    Image(systemName: "minus.circle")
+                                }
+                                .buttonStyle(.borderless)
+                                .help(t("許可を削除", "Remove access"))
+                            }
+                        }
+                    }
+
+                    Button(t("フォルダを追加…", "Add Folder…"), action: addAuthorizedFolders)
+                }
             }
 
             HStack {
@@ -1713,9 +1863,44 @@ struct PreferencesView: View {
             }
         }
         .padding(24)
-        .frame(width: 360, height: 220)
+        .frame(width: 560, height: 430)
         .tint(SproutsPalette.selectionAccent)
         .background(SproutsPalette.windowBackground(colorScheme))
+        .onAppear(perform: refreshAuthorizedFolders)
+        .alert("Sprouts", isPresented: Binding(
+            get: { folderAccessError != nil },
+            set: { if !$0 { folderAccessError = nil } }
+        )) {
+            Button("OK") { folderAccessError = nil }
+        } message: {
+            Text(folderAccessError ?? "")
+        }
+    }
+
+    private func addAuthorizedFolders() {
+        let panel = FolderAccessManager.makeFolderPanel(
+            title: t("作業フォルダへのアクセス", "Work Folder Access"),
+            message: t(
+                "よく使う上位フォルダや外付けHDDを選択してください。",
+                "Choose frequently used parent folders or external drives."
+            ),
+            prompt: t("アクセスを許可", "Allow Access"),
+            allowsMultipleSelection: true
+        )
+        guard panel.runModal() == .OK else { return }
+        do {
+            try panel.urls.forEach(DestinationBookmarkStore.saveSourceFolder)
+            refreshAuthorizedFolders()
+        } catch {
+            folderAccessError = t(
+                "フォルダのアクセス権を保存できませんでした：\(error.localizedDescription)",
+                "Could not remember folder access: \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func refreshAuthorizedFolders() {
+        authorizedFolders = DestinationBookmarkStore.authorizedSourceFolders()
     }
 }
 
