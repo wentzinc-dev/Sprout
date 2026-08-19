@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000040"
-               BuildableName = "Sprout.app"
+               BuildableName = "Sprouts.app"
                BlueprintName = "PDFUNK"
-               ReferencedContainer = "container:Sprout.xcodeproj">
+               ReferencedContainer = "container:Sprouts.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000040"
-            BuildableName = "Sprout.app"
+            BuildableName = "Sprouts.app"
             BlueprintName = "PDFUNK"
-            ReferencedContainer = "container:Sprout.xcodeproj">
+            ReferencedContainer = "container:Sprouts.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>

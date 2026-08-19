@@ -143,13 +143,13 @@ struct FileConverter {
         sequence: OutputSequence,
         isJapanese: Bool,
         progress: @escaping @MainActor (Int, Int) -> Void
-    ) async throws {
+    ) async throws -> [URL] {
         if let message = options.validationMessage(isJapanese: isJapanese) {
             throw ConversionError.incompatibleOptions(message)
         }
 
         if inputURL.pathExtension.lowercased() == "pdf" {
-            try await convertPDF(
+            return try await convertPDF(
                 inputURL,
                 destinationURL: destinationURL,
                 options: options,
@@ -158,7 +158,7 @@ struct FileConverter {
                 progress: progress
             )
         } else {
-            try await convertImage(
+            return try await convertImage(
                 inputURL,
                 destinationURL: destinationURL,
                 options: options,
@@ -176,7 +176,7 @@ struct FileConverter {
         sequence: OutputSequence,
         isJapanese: Bool,
         progress: @escaping @MainActor (Int, Int) -> Void
-    ) async throws {
+    ) async throws -> [URL] {
         guard let document = PDFDocument(url: url) else {
             throw ConversionError.cannotOpenFile(url.lastPathComponent, isJapanese)
         }
@@ -186,6 +186,7 @@ struct FileConverter {
         try validate(colorSpace: colorSpace, options: options, isJapanese: isJapanese)
         let outputFolder = try makeOutputFolder(for: url, in: destinationURL, isJapanese: isJapanese)
 
+        var outputURLs: [URL] = []
         for index in 0..<document.pageCount {
             guard let page = document.page(at: index) else {
                 throw ConversionError.cannotRenderItem(index + 1, isJapanese)
@@ -207,7 +208,13 @@ struct FileConverter {
             )
             let outputURL = uniqueOutputURL(
                 in: outputFolder,
-                filename: OutputFilenameBuilder.filename(for: url, sequence: sequence.next(), format: options.format, options: options)
+                filename: OutputFilenameBuilder.filename(
+                    for: url,
+                    sequence: sequence.next(),
+                    format: options.format,
+                    options: options,
+                    pageNumber: document.pageCount > 1 ? index + 1 : nil
+                )
             )
             try write(
                 rendered.image,
@@ -219,8 +226,10 @@ struct FileConverter {
                 sourceProperties: nil
             )
             preserveFileDatesIfNeeded(from: url, to: outputURL, options: options)
+            outputURLs.append(outputURL)
             await progress(index + 1, document.pageCount)
         }
+        return outputURLs
     }
 
     private func convertImage(
@@ -230,13 +239,14 @@ struct FileConverter {
         sequence: OutputSequence,
         isJapanese: Bool,
         progress: @escaping @MainActor (Int, Int) -> Void
-    ) async throws {
+    ) async throws -> [URL] {
         let fallbackDPI = 72
         let outputFolder = try makeOutputFolder(for: url, in: destinationURL, isJapanese: isJapanese)
 
         if let source = CGImageSourceCreateWithURL(url as CFURL, nil) {
             let sourceCount = max(1, CGImageSourceGetCount(source))
             let count = url.pathExtension.lowercased() == "gif" ? 1 : sourceCount
+            var outputURLs: [URL] = []
             for index in 0..<count {
                 guard let sourceImage = CGImageSourceCreateImageAtIndex(source, index, nil) else {
                     throw ConversionError.cannotRenderItem(index + 1, isJapanese)
@@ -270,9 +280,10 @@ struct FileConverter {
                     sourceProperties: sourceProperties
                 )
                 preserveFileDatesIfNeeded(from: url, to: outputURL, options: options)
+                outputURLs.append(outputURL)
                 await progress(index + 1, count)
             }
-            return
+            return outputURLs
         }
 
         // AppKit can expose the flattened composite of PSD files even when
@@ -306,6 +317,7 @@ struct FileConverter {
         )
         preserveFileDatesIfNeeded(from: url, to: outputURL, options: options)
         await progress(1, 1)
+        return [outputURL]
     }
 
     private func makeOutputFolder(for inputURL: URL, in destinationURL: URL, isJapanese: Bool) throws -> URL {

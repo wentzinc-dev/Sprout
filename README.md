@@ -1,4 +1,4 @@
-# Sprout
+# Sprouts
 
 「あらゆる画像をdrop、あらゆる形式へ。」をコンセプトにした、macOSネイティブの画像変換アプリです。ファイルはMac内で処理し、ネットワークへ送信しません。
 
@@ -51,10 +51,14 @@ WebP出力には`SDWebImageWebPCoder 0.15.0`と`libwebp 1.6.0`を使用します
 
 ## 開発・実行
 
-1. Xcode 16以降で`Sprout.xcodeproj`を開く。
-2. Scheme `Sprout`、実行先`My Mac`を選択する。
+1. Xcode 16以降で`Sprouts.xcodeproj`を開く。
+2. Scheme `Sprouts`、実行先`My Mac`を選択する。
 3. Runして対応ファイルをドロップし、保存先を明示的に選択して書き出す。
 
-Xcodeのプロジェクト名とScheme名はSproutです。ソースターゲットの内部名は互換性のためPDFUNKのままです。生成されるアプリ名は`Sprout.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
+Xcodeのプロジェクト名とScheme名はSproutsです。ソースターゲットの内部名は互換性のためPDFUNKのままです。生成されるアプリ名は`Sprouts.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
 
 詳細は[`docs/HANDOFF.md`](docs/HANDOFF.md)を参照してください。
+
+## サポート
+
+使い方、仕様、トラブルシューティングは[Sproutsサポート](docs/index.md)を参照してください。問題の報告は[GitHub Issues](https://github.com/wentzinc-dev/Sprouts/issues)で受け付けます。

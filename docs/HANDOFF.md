@@ -1,10 +1,10 @@
-# Sprout 開発引き継ぎまとめ
+# Sprouts 開発引き継ぎまとめ
 
 更新日: 2026年8月2日
 
 ## 1. プロジェクト概要
 
-Sproutは、既存macOSアプリ「PDFUNK」をベースにした多形式画像変換アプリです。
+Sproutsは、既存macOSアプリ「PDFUNK」をベースにした多形式画像変換アプリです。
 
 - コンセプト: `あらゆる画像をdrop、あらゆる形式へ。`
 - macOS 13以降
@@ -13,22 +13,22 @@ Sproutは、既存macOSアプリ「PDFUNK」をベースにした多形式画像
 - ネットワークへ入力ファイルを送信しない
 - App Sandboxを維持
 
-旧名称のTo-myoは使用せず、今後は`Sprout`で統一します。
+旧名称のTo-myoは使用せず、今後は`Sprouts`で統一します。
 
 ## 2. Git・プロジェクト情報
 
 - Repository: <https://github.com/wentzinc-dev/PDFUNK>
 - 作業ブランチ: `codex/sprout-initial`
 - ブランチ基点: `origin/agent/developer-id-distribution`
-- Xcode Project: `Sprout.xcodeproj`
-- Scheme: `Sprout`
+- Xcode Project: `Sprouts.xcodeproj`
+- Scheme: `Sprouts`
 - Target内部名: `PDFUNK`
-- Product Name / アプリ表示名: `Sprout`
-- 生成物: `Sprout.app`
+- Product Name / アプリ表示名: `Sprouts`
+- 生成物: `Sprouts.app`
 - 暫定Bundle Identifier: `com.wentz.sprout`
 - Developer Team: `UYQNZULLNC`
 
-プロジェクトとSchemeはSproutへ改名済みです。ターゲットとソースディレクトリの内部名は既存参照を壊さないためPDFUNKのままです。
+プロジェクトとSchemeはSproutsへ改名済みです。ターゲットとソースディレクトリの内部名は既存参照を壊さないためPDFUNKのままです。
 
 現在の変更は未コミットです。
 
@@ -76,7 +76,7 @@ JPG / PNG / TIFF / WebPは複数同時に選択でき、1回の実行で選択�
 - 幅px以内
 - 高さpx以内
 
-すべて縦横比を維持します。「長辺／短辺」はアップスケール設定に従い、「以内」は指定値より小さい画像を必ず拡大しません。
+すべて縦横比を維持します。「長辺／短辺」は入力より大きい値でも指定ピクセルまで拡大します。「以内」は指定値より小さい画像を拡大しません。
 
 「幅」「高さ」は小さい画像も指定値まで拡大します。「幅以内」「高さ以内」は指定値を超える画像だけ縮小します。
 
@@ -108,7 +108,7 @@ PDFは指定DPIでラスタライズした後、ほかの画像と同じ保存�
 - 同じ場所（初期値）
 - 選択したフォルダ
 
-「同じ場所」では、入力ファイルの隣へ直接保存するか、出力形式名のフォルダ（`PNG`、`JPG`など）を新規作成してそこへ保存するか選択します。「選択したフォルダ」ではNSOpenPanelから保存先を選びます。Sandboxのsecurity scopeによって親フォルダへ書き込めない場合は、保存先を切り替えるようエラー表示します。
+形式別フォルダ作成は初期値ONです。「同じ場所」では入力ファイルの隣に、「選択したフォルダ」では選択先の直下に、出力形式名のフォルダ（`PNG`、`JPG`など）を作成します。フォルダ構成維持との併用時は、形式別フォルダの内側に元の階層を作成します。OFFの場合は保存先へ直接書き出します。「選択したフォルダ」はNSOpenPanelから指定します。Sandboxのsecurity scopeによって親フォルダへ書き込めない場合は、保存先を切り替えるようエラー表示します。
 
 ## 7. 追加設定
 
@@ -138,7 +138,7 @@ PDFは指定DPIでラスタライズした後、ほかの画像と同じ保存�
 
 ### アップスケール
 
-現在はUIへ表示せず、小さい画像を元サイズで維持します。「長辺px以内」「短辺px以内」もアップスケールしません。設定UIを再導入する場合に備えて内部設定は維持しています。
+「長辺ピクセル」「短辺ピクセル」「幅」「高さ」「解像度」は、指定結果が入力より大きい場合にアップスケールします。「長辺px以内」「短辺px以内」「幅px以内」「高さpx以内」は縮小専用で、小さい画像を拡大しません。拡大は細部を復元せず、ぼけや圧縮ノイズが目立つ場合があります。
 
 ### JPEG品質
 
@@ -191,7 +191,7 @@ WebP品質はWebP選択時に1〜100で設定します。
 
 - v1基準: コミット`486233c`、タグ`sprout-v1`
 - v2作業ブランチ: `codex/sprout-v2`
-- 画面内の文字タイトルは表示しない（タイトルバーの`Sprout`は維持）
+- 画面内の文字タイトルは表示しない（タイトルバーの`Sprouts`は維持）
 - ドロップ表示: `（PNG、JPG、PDF、PSD、TIF、GIF、WebP）をここへドロップ`
 - 緑を基調にしたmacOSネイティブUI
 - 右上の歯車から環境設定を表示
@@ -233,7 +233,7 @@ WebP品質はWebP選択時に1〜100で設定します。
 
 新芽が密集したトップビューの仮アイコンを使用しています。
 
-- マスター: `Resources/Sprout-AppIcon-Provisional.png`
+- マスター: `Resources/Sprouts-AppIcon-Provisional.png`
 - AppIcon: 16〜1024pxを生成済み
 - 文字なし
 - 深緑背景と黄緑の双葉
@@ -248,7 +248,7 @@ macOSのImageIOはWebP入力を読めますが、この環境ではWebP出力を
 - `SDWebImage 5.21.7`
 - `libwebp 1.6.0`
 
-解決バージョンは`Sprout.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`に保存しています。
+解決バージョンは`Sprouts.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`に保存しています。
 
 WebP変換はローカルライブラリ内で完結し、ネットワーク権限は追加していません。
 
@@ -273,7 +273,7 @@ Debugを現在のMacのarm64だけにした理由は、Swift Packageをarm64で�
 - arm64 Debugアプリ生成成功
 - arm64 / x86_64 Universal Binary生成成功
 - macOS 13 deployment target
-- `Sprout.app`、`com.wentz.sprout`のInfo.plist生成
+- `Sprouts.app`、`com.wentz.sprout`のInfo.plist生成
 - Xcodeプロジェクト構文チェック
 
 未確認:
@@ -307,14 +307,14 @@ Debugを現在のMacのarm64だけにした理由は、Swift Packageをarm64で�
 
 | ファイル | 役割 |
 | --- | --- |
-| `Sources/PDFUNK/PDFUNKApp.swift` | Sproutのエントリポイント、テーマ・言語環境、ウインドウサイズ |
+| `Sources/PDFUNK/PDFUNKApp.swift` | Sproutsのエントリポイント、テーマ・言語環境、ウインドウサイズ |
 | `Sources/PDFUNK/ContentView.swift` | UI、ドロップ、フォルダ展開、保存先、詳細設定、進捗 |
 | `Sources/PDFUNK/ExportOptions.swift` | 保存サイズ6モード、PDF DPI、アップスケール、形式、JPEG品質、カラー |
 | `Sources/PDFUNK/PDFConverter.swift` | 入力検査、PDF／画像入力、リサイズ、色空間、ImageIO／WebP出力 |
 | `Sources/PDFUNK/WindowConfigurator.swift` | 標準macOSウインドウ設定 |
 | `Config/PDFUNK.entitlements` | Sandbox entitlement |
 | `Package.swift` | SwiftPM構成 |
-| `scripts/archive-and-notarize.sh` | Sprout配布スクリプト |
+| `scripts/archive-and-notarize.sh` | Sprouts配布スクリプト |
 
 ## 15. 注意事項
 

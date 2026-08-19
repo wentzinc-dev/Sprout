@@ -195,6 +195,7 @@ struct ExportOptions: Codable {
     var saveDPI: Int { saveResolution.value(customDPI: customSaveDPI) }
     var effectivePDFDPI: Int { saveSizeMode == .resolution ? saveDPI : pdfDPI }
     var shouldOpenDestinationWhenComplete: Bool { opensDestinationWhenComplete ?? true }
+    var usesFormatFolders: Bool { (sameLocationExportMode ?? .formatFolder) == .formatFolder }
 
     var selectedFormats: [ExportFormat] {
         let selection = formats.flatMap { $0.isEmpty ? nil : $0 } ?? [format]
@@ -242,7 +243,13 @@ struct ExportOptions: Codable {
         case .width?, .maxWidth?: requested = CGFloat(edgePixels) / CGFloat(width)
         case .height?, .maxHeight?: requested = CGFloat(edgePixels) / CGFloat(height)
         }
-        if saveSizeMode == .width || saveSizeMode == .height || saveSizeMode == .resolution { return requested }
+        if saveSizeMode == .longEdge
+            || saveSizeMode == .shortEdge
+            || saveSizeMode == .width
+            || saveSizeMode == .height
+            || saveSizeMode == .resolution {
+            return requested
+        }
         return saveSizeMode?.neverUpscales == true || !allowsUpscaling ? min(1, requested) : requested
     }
 
@@ -303,7 +310,8 @@ enum OutputFilenameBuilder {
         for inputURL: URL,
         sequence: Int,
         format: ExportFormat,
-        options: ExportOptions
+        options: ExportOptions,
+        pageNumber: Int? = nil
     ) -> String {
         var name = inputURL.deletingPathExtension().lastPathComponent
         for operation in options.effectiveFilenameOperations {
@@ -324,6 +332,8 @@ enum OutputFilenameBuilder {
         }
         let invalid = CharacterSet(charactersIn: "/:")
         let sanitized = name.components(separatedBy: invalid).joined(separator: "_")
-        return "\(sanitized.isEmpty ? "image" : sanitized).\(format.fileExtension)"
+        let baseName = sanitized.isEmpty ? "image" : sanitized
+        let pageSuffix = pageNumber.map { String(format: "_%03d", $0) } ?? ""
+        return "\(baseName)\(pageSuffix).\(format.fileExtension)"
     }
 }
