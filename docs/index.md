@@ -5,9 +5,11 @@ title: Sprouts Support
 
 # Sprouts サポート
 
+<img src="assets/sprouts-icon.png" alt="Sprouts icon" width="160">
+
 Sproutsは、画像、PDF、PSDなどをMac内で変換するmacOSアプリです。入力ファイルを外部サーバーへ送信しません。
 
-[English](#english) | [不具合を報告する](https://github.com/wentzinc-dev/Sprouts/issues/new)
+[English](#english) | [プライバシーポリシー](privacy/) | [不具合を報告する](https://github.com/wentzinc-dev/Sprouts/issues/new)
 
 ## 基本的な使い方
 
@@ -68,7 +70,7 @@ Sproutsは、画像、PDF、PSDなどをMac内で変換するmacOSアプリで�
 
 ## お問い合わせ
 
-不具合や要望は[GitHub Issues](https://github.com/wentzinc-dev/Sprouts/issues)へ投稿してください。再現手順、macOSのバージョン、入力形式、選択した設定、表示されたログを添えると調査しやすくなります。機密ファイルは添付しないでください。
+SproutsはWENTZ, K.K.が提供しています。不具合、一般的なお問い合わせ、機能のご要望は[GitHub Issues](https://github.com/wentzinc-dev/Sprouts/issues/new)へ投稿してください。再現手順、macOSのバージョン、入力形式、選択した設定、表示されたログを添えると調査しやすくなります。機密ファイルは添付しないでください。
 
 ---
 
@@ -104,4 +106,4 @@ Upscaling cannot recreate missing detail and may magnify softness or compression
 
 ## Troubleshooting and contact
 
-If Sprouts cannot save, explicitly choose a writable destination folder and approve macOS folder access when requested. For bugs and feature requests, open a [GitHub Issue](https://github.com/wentzinc-dev/Sprouts/issues/new) with reproduction steps, macOS version, input format, settings, and the displayed log. Do not attach confidential source files.
+If Sprouts cannot save, explicitly choose a writable destination folder and approve macOS folder access when requested. Sprouts is provided by WENTZ, K.K. For bugs, general support, and feature requests, open a [GitHub Issue](https://github.com/wentzinc-dev/Sprouts/issues/new) with reproduction steps, macOS version, input format, settings, and the displayed log. Do not attach confidential source files.
