@@ -4,7 +4,7 @@
 
 ## 1. プロジェクト概要
 
-Sproutsは、既存macOSアプリ「PDFUNK」をベースにした多形式画像変換アプリです。
+Sproutsは、画像やPDFを複数の画像形式へ変換するmacOSアプリです。
 
 - コンセプト: `あらゆる画像をdrop、あらゆる形式へ。`
 - macOS 13以降
@@ -17,18 +17,18 @@ Sproutsは、既存macOSアプリ「PDFUNK」をベースにした多形式画�
 
 ## 2. Git・プロジェクト情報
 
-- Repository: <https://github.com/wentzinc-dev/PDFUNK>
+- Repository: <https://github.com/wentzinc-dev/Sprouts>
 - 作業ブランチ: `codex/sprout-initial`
 - ブランチ基点: `origin/agent/developer-id-distribution`
 - Xcode Project: `Sprouts.xcodeproj`
 - Scheme: `Sprouts`
-- Target内部名: `PDFUNK`
+- Target名: `Sprouts`
 - Product Name / アプリ表示名: `Sprouts`
 - 生成物: `Sprouts.app`
 - 暫定Bundle Identifier: `com.wentz.sprout`
 - Developer Team: `UYQNZULLNC`
 
-プロジェクトとSchemeはSproutsへ改名済みです。ターゲットとソースディレクトリの内部名は既存参照を壊さないためPDFUNKのままです。
+プロジェクト、Scheme、ターゲット、ソースディレクトリはSproutsへ統一済みです。
 
 現在の変更は未コミットです。
 
@@ -307,18 +307,18 @@ Debugを現在のMacのarm64だけにした理由は、Swift Packageをarm64で�
 
 | ファイル | 役割 |
 | --- | --- |
-| `Sources/PDFUNK/PDFUNKApp.swift` | Sproutsのエントリポイント、テーマ・言語環境、ウインドウサイズ |
-| `Sources/PDFUNK/ContentView.swift` | UI、ドロップ、フォルダ展開、保存先、詳細設定、進捗 |
-| `Sources/PDFUNK/ExportOptions.swift` | 保存サイズ6モード、PDF DPI、アップスケール、形式、JPEG品質、カラー |
-| `Sources/PDFUNK/PDFConverter.swift` | 入力検査、PDF／画像入力、リサイズ、色空間、ImageIO／WebP出力 |
-| `Sources/PDFUNK/WindowConfigurator.swift` | 標準macOSウインドウ設定 |
-| `Config/PDFUNK.entitlements` | Sandbox entitlement |
+| `Sources/Sprouts/SproutsApp.swift` | Sproutsのエントリポイント、テーマ・言語環境、ウインドウサイズ |
+| `Sources/Sprouts/ContentView.swift` | UI、ドロップ、フォルダ展開、保存先、詳細設定、進捗 |
+| `Sources/Sprouts/ExportOptions.swift` | 保存サイズ6モード、PDF DPI、アップスケール、形式、JPEG品質、カラー |
+| `Sources/Sprouts/PDFConverter.swift` | 入力検査、PDF／画像入力、リサイズ、色空間、ImageIO／WebP出力 |
+| `Sources/Sprouts/WindowConfigurator.swift` | 標準macOSウインドウ設定 |
+| `Config/Sprouts.entitlements` | Sandbox entitlement |
 | `Package.swift` | SwiftPM構成 |
 | `scripts/archive-and-notarize.sh` | Sprouts配布スクリプト |
 
 ## 15. 注意事項
 
-- PDFUNKのmasterや正式配布ブランチへ直接変更を入れない。
+- Sproutsのmasterや正式配布ブランチへ直接変更を入れない。
 - 現在の変更は未コミットなので、作業前に`git status`を確認する。
 - 新しいネットワーク権限を追加しない。
 - PSDレイヤー構造を保持する実装ではない。

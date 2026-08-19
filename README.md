@@ -55,7 +55,7 @@ WebP出力には`SDWebImageWebPCoder 0.15.0`と`libwebp 1.6.0`を使用します
 2. Scheme `Sprouts`、実行先`My Mac`を選択する。
 3. Runして対応ファイルをドロップし、保存先を明示的に選択して書き出す。
 
-Xcodeのプロジェクト名とScheme名はSproutsです。ソースターゲットの内部名は互換性のためPDFUNKのままです。生成されるアプリ名は`Sprouts.app`、暫定Bundle Identifierは`com.wentz.sprout`です。
+Xcodeのプロジェクト名・Scheme名・ターゲット名はSproutsです。生成されるアプリ名は`Sprouts.app`です。
 
 詳細は[`docs/HANDOFF.md`](docs/HANDOFF.md)を参照してください。
 
